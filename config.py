@@ -18,6 +18,8 @@ class Config:
         # Common configs
         cls.JWT_SECRET = get_env_var('JWT_SECRET')
         cls.SQLALCHEMY_DATABASE_URI = 'sqlite:///fore_poster.db'
+        if cls.PRODUCTION:
+            cls.SQLALCHEMY_DATABASE_URI = get_env_var('DATABASE_URL')
         
         # X API configs
         cls.X_API_KEY = get_env_var('X_API_KEY')
@@ -30,4 +32,3 @@ class Config:
             cls.AWS_REGION = get_env_var('AWS_REGION', 'us-east-1')
             cls.SES_SENDER = get_env_var('SES_SENDER')
             cls.SES_RECIPIENT = get_env_var('SES_RECIPIENT')
-            cls.SQLALCHEMY_DATABASE_URI = get_env_var('DATABASE_URL')

@@ -3,25 +3,33 @@ import subprocess
 import platform
 
 def check_env():
-    vars_to_check = ['X_API_KEY', 'X_API_SECRET', 'X_ACCESS_TOKEN', 'X_ACCESS_TOKEN_SECRET']
+    vars_to_check = [
+        'JWT_SECRET',
+        'DATABASE_URL',
+        'X_API_KEY',
+        'X_API_SECRET',
+        'X_ACCESS_TOKEN',
+        'X_ACCESS_TOKEN_SECRET',
+        'AWS_REGION',
+        'SES_SENDER',
+        'SES_RECIPIENT'
+    ]
     
     for var in vars_to_check:
-        # Use PowerShell to get user environment variable
-        cmd = f'powershell -Command "[Environment]::GetEnvironmentVariable(\'{var}\', \'User\')"'
-        result = subprocess.run(cmd, capture_output=True, text=True)
-        value = result.stdout.strip()
-        
+        value = get_env_var(var)
         print(f"{var}: {'Set' if value else 'Not set'}")
         if value:
             print(f"Length: {len(value)}")
 
-def get_env_var(var_name: str) -> str:
+def get_env_var(var_name: str, default: str = None) -> str:
     if platform.system() == 'Windows':
         cmd = f'powershell -Command "[Environment]::GetEnvironmentVariable(\'{var_name}\', \'User\')"'
         result = subprocess.run(cmd, capture_output=True, text=True)
-        return result.stdout.strip()
+        value = result.stdout.strip()
     else:
-        return os.getenv(var_name)
+        value = os.getenv(var_name)
+    
+    return value if value else default
 
 def set_env_var(var_name: str, value: str) -> None:
     if platform.system() == 'Windows':
