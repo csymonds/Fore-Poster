@@ -10,7 +10,7 @@ from functools import wraps
 from config import Config
 
 app = Flask(__name__)
-Config.init_app(os.getenv('FLASK_ENV', 'development'))
+Config.init_app(os.getenv('FLASK_DEBUG', 'development'))
 app.config.from_object(Config)
 db = SQLAlchemy(app)
 

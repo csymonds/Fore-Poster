@@ -53,7 +53,7 @@ pip install flask flask_sqlalchemy tweepy PyJWT apscheduler boto3 gunicorn psyco
 cp -r * /var/www/fore-poster/
 
 # Initialize database
-FLASK_ENV=production python3 -c "from fore_poster import app, db; db.create_all()"
+FLASK_DEBUG=production python3 -c "from fore_poster import app, db; db.create_all()"
 ```
 
 3. Service Configuration

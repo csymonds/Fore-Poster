@@ -119,7 +119,7 @@ Time: {datetime.utcnow().isoformat()}
             )
 
 if __name__ == "__main__":
-    Config.init_app(os.getenv('FLASK_ENV', 'development'))
+    Config.init_app(os.getenv('FLASK_DEBUG', 'development'))
     scheduler = PostScheduler()
     scheduler.start()
     

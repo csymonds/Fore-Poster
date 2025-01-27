@@ -34,7 +34,7 @@ GRANT ALL PRIVILEGES ON DATABASE $DB_NAME TO $DB_USER;
 EOF
 
 # Initial schema creation (after setting up venv and installing dependencies)
-FLASK_ENV=production python3 << EOF
+FLASK_DEBUG=production python3 << EOF
 from fore_poster import app, db
 with app.app_context():
     db.create_all()
