@@ -5,12 +5,13 @@ import os
 from datetime import datetime, timedelta
 import hashlib
 import tweepy
-from env_handler import get_env_var
+from env_handler import load_environment
 from functools import wraps
 from config import Config
 
 app = Flask(__name__)
-Config.init_app(os.getenv('FLASK_DEBUG', 'development'))
+load_environment()
+Config.init_app(os.getenv('APP_ENV', 'development'))
 app.config.from_object(Config)
 db = SQLAlchemy(app)
 

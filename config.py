@@ -3,7 +3,7 @@ from env_handler import get_env_var
 
 class Config:
     TESTING = False
-    DEVELOPMENT = True
+    DEVELOPMENT = False
     PRODUCTION = False
     
     @classmethod
