@@ -1,3 +1,4 @@
+import os
 from werkzeug.security import generate_password_hash
 from env_handler import load_environment
 

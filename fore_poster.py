@@ -3,7 +3,7 @@ from flask_sqlalchemy import SQLAlchemy
 import jwt
 import os
 from datetime import datetime, timedelta
-import hashlib
+from werkzeug.security import generate_password_hash, check_password_hash
 import tweepy
 from env_handler import load_environment, get_env_var
 from functools import wraps
@@ -89,7 +89,7 @@ def login():
     data = request.get_json()
     user = User.query.filter_by(username=data['username']).first()
     
-    if user and user.password == hashlib.sha256(data['password'].encode()).hexdigest():
+    if user and check_password_hash(user.password, data['password']):
         return jsonify({'token': auth.generate_token(user.id)})
     return jsonify({'error': 'Invalid credentials'}), 401
 
@@ -99,10 +99,10 @@ def update_credentials():
     data = request.get_json()
     user = User.query.get(request.user_id)
     
-    if not user.password == hashlib.sha256(data['current_password'].encode()).hexdigest():
+    if not check_password_hash(user.password, data['current_password']):
         return jsonify({'error': 'Invalid current password'}), 401
         
-    user.password = hashlib.sha256(data['new_password'].encode()).hexdigest()
+    user.password = generate_password_hash(data['new_password'])
     db.session.commit()
     return jsonify({'message': 'Password updated'})
 
@@ -210,7 +210,7 @@ if __name__ == '__main__':
         if not User.query.first():
             default_user = User(
                 username='admin',
-                password=hashlib.sha256('admin'.encode()).hexdigest()
+                password=generate_password_hash('admin')
             )
             db.session.add(default_user)
             db.session.commit()

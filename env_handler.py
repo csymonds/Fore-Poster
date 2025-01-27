@@ -42,6 +42,8 @@ def check_env():
         'DB_NAME',
         'DB_USER',
         'DB_PASSWORD',
+        'DB_PORT',
+        'DB_HOST',
         'X_API_KEY',
         'X_API_SECRET',
         'X_ACCESS_TOKEN',
