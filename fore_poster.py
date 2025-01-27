@@ -5,7 +5,7 @@ import os
 from datetime import datetime, timedelta
 import hashlib
 import tweepy
-from env_handler import load_environment
+from env_handler import load_environment, get_env_var
 from functools import wraps
 from config import Config
 

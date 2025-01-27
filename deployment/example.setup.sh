@@ -6,7 +6,7 @@ python3 -m venv /var/www/fore-poster/venv
 
 # Install dependencies
 source /var/www/fore-poster/venv/bin/activate
-pip install flask flask_sqlalchemy tweepy PyJWT apscheduler boto3 gunicorn
+pip install flask flask_sqlalchemy tweepy PyJWT apscheduler boto3 gunicorn python-dotenv
 
 # Copy service files
 sudo cp fore-poster.service /etc/systemd/system/
@@ -34,7 +34,7 @@ GRANT ALL PRIVILEGES ON DATABASE $DB_NAME TO $DB_USER;
 EOF
 
 # Initial schema creation (after setting up venv and installing dependencies)
-FLASK_DEBUG=production python3 << EOF
+APP_ENV=production python3 << EOF
 from fore_poster import app, db
 with app.app_context():
     db.create_all()

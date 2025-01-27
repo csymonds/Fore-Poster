@@ -1,10 +1,11 @@
 from werkzeug.security import generate_password_hash
-from fore_poster import app, db, User
-from dotenv import load_dotenv
-import os
+from env_handler import load_environment
 
-# Load .env file
-load_dotenv()
+# Load environment variables before importing the app
+load_environment()
+
+# Now import the app and models
+from fore_poster import app, db, User
 
 with app.app_context():
     db.drop_all()  # Reset database
@@ -17,3 +18,6 @@ with app.app_context():
     )
     db.session.add(default_user)
     db.session.commit()
+
+    print("Database setup complete.")
+    print(f"Created admin user: {os.getenv('ADMIN_USERNAME')}")
