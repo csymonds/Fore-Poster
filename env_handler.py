@@ -5,10 +5,10 @@ def load_environment():
     """Load environment variables from .env file"""
     # Try multiple possible locations for the env file
     possible_locations = [
-        'pf.env',  # Current directory
-        os.path.join(os.path.dirname(__file__), 'pf.env'),  # Same directory as this script
-        os.path.join(os.path.dirname(os.path.dirname(__file__)), 'pf.env'),  # Parent directory
-        '/var/www/fore-poster/pf.env'  # Absolute path
+        'fp.env',  # Current directory
+        os.path.join(os.path.dirname(__file__), 'fp.env'),  # Same directory as this script
+        os.path.join(os.path.dirname(os.path.dirname(__file__)), 'fp.env'),  # Parent directory
+        '/var/www/fore-poster/fp.env'  # Absolute path
     ]
 
     env_file_found = False
@@ -20,7 +20,7 @@ def load_environment():
             break
 
     if not env_file_found:
-        print("Warning: pf.env not found in any of these locations:")
+        print("Warning: fp.env not found in any of these locations:")
         for loc in possible_locations:
             print(f"  - {os.path.abspath(loc)}")
 
