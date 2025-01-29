@@ -6,7 +6,7 @@ After=network.target
 [Service]
 User=ubuntu
 WorkingDirectory=/var/www/fore-poster
-EnvironmentFile=/var/www/fore-poster/fp.env
+EnvironmentFile=/var/www/fore-poster/.env
 Environment="PATH=/var/www/fore-poster/venv/bin"
 ExecStart=/var/www/fore-poster/venv/bin/python fore_scheduler.py
 StandardOutput=journal

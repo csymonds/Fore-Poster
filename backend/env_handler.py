@@ -5,10 +5,11 @@ def load_environment():
     """Load environment variables from .env file"""
     # Try multiple possible locations for the env file
     possible_locations = [
-        'fp.env',  # Current directory
-        os.path.join(os.path.dirname(__file__), 'fp.env'),  # Same directory as this script
-        os.path.join(os.path.dirname(os.path.dirname(__file__)), 'fp.env'),  # Parent directory
-        '/var/www/fore-poster/fp.env'  # Absolute path
+        '.env',  # Current directory
+        os.path.join(os.path.dirname(__file__), '.env'),  # Same directory as this script
+        os.path.join(os.path.dirname(os.path.dirname(__file__)), '.env'),  # Project root
+        '/etc/fore-poster/.env',  # System config directory
+        '/var/www/fore-poster/.env'  # Production application directory
     ]
 
     env_file_found = False
@@ -20,9 +21,18 @@ def load_environment():
             break
 
     if not env_file_found:
-        print("Warning: fp.env not found in any of these locations:")
+        print("Warning: .env not found in any of these locations:")
         for loc in possible_locations:
             print(f"  - {os.path.abspath(loc)}")
+
+    # If environment file specified in systemd service, it takes precedence
+    if 'ENVIRONMENT_FILE' in os.environ:
+        custom_env_path = os.environ['ENVIRONMENT_FILE']
+        if os.path.exists(custom_env_path):
+            load_dotenv(custom_env_path)
+            print(f"Loaded environment from ENVIRONMENT_FILE: {custom_env_path}")
+        else:
+            print(f"Warning: Environment file specified in ENVIRONMENT_FILE not found: {custom_env_path}")
 
 def get_env_var(var_name: str, default: str = None) -> str:
     """Get environment variable value, with optional default"""
