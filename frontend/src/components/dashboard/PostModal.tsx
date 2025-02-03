@@ -1,16 +1,17 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import DatePicker from 'react-datepicker';
+import "react-datepicker/dist/react-datepicker.css";
 import {
   Dialog,
   DialogContent,
-  DialogDescription,
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
-import { Post, CreatePostPayload } from '@/services/api';
+import { CalendarIcon } from 'lucide-react';
+import { Post } from '@/services/api';
 import { useCreatePost, useUpdatePost } from '@/hooks/usePosts';
 
 interface PostModalProps {
@@ -19,27 +20,43 @@ interface PostModalProps {
   post?: Post;
 }
 
-const PostModal = ({ isOpen, onClose, post }: PostModalProps) => {
-  const [content, setContent] = useState(post?.content || '');
-  const [scheduledTime, setScheduledTime] = useState(post?.scheduled_time || '');
+const PostModal: React.FC<PostModalProps> = ({ isOpen, onClose, post }) => {
+  const [content, setContent] = useState('');
+  const [scheduledTime, setScheduledTime] = useState<Date>(new Date());
+
+  // Reset form when modal opens/closes or post changes
+  useEffect(() => {
+    if (isOpen) {
+      if (post) {
+        // Editing existing post
+        setContent(post.content);
+        setScheduledTime(new Date(post.scheduled_time));
+      } else {
+        // Creating new post
+        setContent('');
+        setScheduledTime(new Date());
+      }
+    }
+  }, [isOpen, post]);
+
   const createPost = useCreatePost();
   const updatePost = useUpdatePost();
-  
-  const isOverLimit = content.length > 280;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
-    const payload: CreatePostPayload = {
-      content,
-      scheduled_time: scheduledTime,
-      platform: 'x',
-      status: 'draft' // Always start as draft
-    };
-
     try {
+      const payload = {
+        content,
+        scheduled_time: scheduledTime.toISOString(),
+        platform: 'x',
+        status: 'scheduled' as const
+      };
+
       if (post) {
-        await updatePost.mutateAsync({ id: post.id, post: payload });
+        await updatePost.mutateAsync({ 
+          id: post.id, 
+          post: payload 
+        });
       } else {
         await createPost.mutateAsync(payload);
       }
@@ -51,14 +68,10 @@ const PostModal = ({ isOpen, onClose, post }: PostModalProps) => {
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent>
+      <DialogContent className="sm:max-w-[425px] bg-card">
         <DialogHeader>
-          <DialogTitle>{post ? 'Edit Post' : 'New Post'}</DialogTitle>
-          <DialogDescription>
-            Create or schedule a post for X (Twitter)
-          </DialogDescription>
+          <DialogTitle className="text-foreground">{post ? 'Edit Post' : 'Create Post'}</DialogTitle>
         </DialogHeader>
-
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="space-y-2">
             <Label htmlFor="content">Content</Label>
@@ -68,43 +81,49 @@ const PostModal = ({ isOpen, onClose, post }: PostModalProps) => {
               onChange={(e) => setContent(e.target.value)}
               rows={4}
               className="resize-none"
-              placeholder="What's on your mind?"
+              required
             />
-            <div className="text-sm text-gray-500">
-              {content.length}/280 characters
-            </div>
           </div>
 
           <div className="space-y-2">
             <Label htmlFor="scheduled-time">Schedule Time</Label>
-            <Input
-              id="scheduled-time"
-              type="datetime-local"
-              value={scheduledTime}
-              onChange={(e) => setScheduledTime(e.target.value)}
-            />
+            <div className="relative">
+              <DatePicker
+                selected={scheduledTime}
+                onChange={(date: Date | null) => date && setScheduledTime(date)}
+                showTimeSelect
+                timeFormat="HH:mm"
+                timeIntervals={15}
+                dateFormat="MMMM d, yyyy h:mm aa"
+                className="w-full rounded-md border-2 border-indigo-400 dark:border-indigo-500 
+                  bg-background text-foreground px-3 py-2 text-sm shadow-sm
+                  focus-visible:outline-none focus-visible:ring-2 
+                  focus-visible:ring-indigo-400 dark:focus-visible:ring-indigo-500"
+                wrapperClassName="w-full"
+                popperClassName="react-datepicker-popper"
+                calendarClassName="bg-card border-2 border-indigo-400 dark:border-indigo-500 text-foreground"
+                dayClassName={() => "text-foreground hover:bg-indigo-100 dark:hover:bg-indigo-900"}
+                timeClassName={() => "text-foreground"}
+              />
+              <CalendarIcon className="absolute right-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground pointer-events-none" />
+            </div>
           </div>
 
-          <div className="flex justify-end space-x-2">
-            <Button 
-              type="button" 
-              variant="outline" 
+          <div className="flex justify-end gap-2">
+            <Button
+              type="button"
+              variant="outline"
               onClick={onClose}
+              className="border-2 border-indigo-400 dark:border-indigo-500"
             >
               Cancel
             </Button>
             <Button
               type="submit"
-              disabled={isOverLimit || createPost.isPending || updatePost.isPending}
+              disabled={createPost.isPending || updatePost.isPending}
+              className="bg-indigo-500 hover:bg-indigo-600 text-white"
             >
-              {createPost.isPending || updatePost.isPending ? (
-                <span className="flex items-center gap-2">
-                  <span className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
-                  Saving...
-                </span>
-              ) : (
-                'Save'
-              )}
+              {createPost.isPending || updatePost.isPending ? 'Saving...' : 'Save'}
             </Button>
           </div>
         </form>

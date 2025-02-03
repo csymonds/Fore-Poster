@@ -1,5 +1,7 @@
 @tailwind base;
 @tailwind components;
+@tailwind base;
+@tailwind components;
 @tailwind utilities;
  
 @layer base {
@@ -64,6 +66,9 @@
     --input: 217.2 32.6% 17.5%;
     --ring: 212.7 26.8% 83.9%;
   }
+  * {
+    @apply transition-colors duration-200;
+  }
 }
  
 @layer base {
@@ -73,4 +78,52 @@
   body {
     @apply bg-background text-foreground;
   }
+}
+/* Add this after your existing @layer base styles */
+/* Add after your existing styles */
+.react-datepicker-popper {
+  z-index: 40 !important;
+}
+
+.react-datepicker {
+  @apply bg-card border-2 border-indigo-400 dark:border-indigo-500 !important;
+}
+
+.react-datepicker__header {
+  @apply bg-muted border-b border-border text-foreground !important;
+}
+
+.react-datepicker__current-month,
+.react-datepicker__day-name,
+.react-datepicker__day,
+.react-datepicker__time-name {
+  @apply text-foreground !important;
+}
+
+.react-datepicker__day:hover,
+.react-datepicker__month-text:hover,
+.react-datepicker__quarter-text:hover,
+.react-datepicker__year-text:hover {
+  @apply bg-indigo-100 dark:bg-indigo-900 !important;
+}
+
+.react-datepicker__day--selected,
+.react-datepicker__day--keyboard-selected {
+  @apply bg-indigo-500 text-white hover:bg-indigo-600 !important;
+}
+
+.react-datepicker__time-container {
+  @apply border-l border-border !important;
+}
+
+.react-datepicker__time-container .react-datepicker__time {
+  @apply bg-card !important;
+}
+
+.react-datepicker__time-container .react-datepicker__time-box ul.react-datepicker__time-list li.react-datepicker__time-list-item {
+  @apply text-foreground hover:bg-indigo-100 dark:hover:bg-indigo-900 !important;
+}
+
+.react-datepicker__time-container .react-datepicker__time-box ul.react-datepicker__time-list li.react-datepicker__time-list-item--selected {
+  @apply bg-indigo-500 text-white hover:bg-indigo-600 !important;
 }

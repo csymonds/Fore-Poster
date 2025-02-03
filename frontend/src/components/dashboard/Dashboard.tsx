@@ -67,12 +67,11 @@ const Dashboard = () => {
       </Alert>
     );
   }
-
   return (
-    <div className="min-h-screen bg-slate-100">
+    <div className="min-h-screen bg-background">
       <div className="max-w-7xl mx-auto p-4 sm:p-6 lg:p-8">
         <div className="flex justify-between items-center mb-8">
-          <h1 className="text-2xl sm:text-3xl font-bold text-slate-900">Posts</h1>
+          <h1 className="text-2xl sm:text-3xl font-bold text-foreground">Posts</h1>
           <Button
             onClick={() => {
               setSelectedPost(undefined);
@@ -88,37 +87,43 @@ const Dashboard = () => {
 
         <div className="space-y-6">
           {posts?.map((post) => (
-            <Card key={post.id} className="bg-white rounded-xl shadow-lg border-0 overflow-hidden">
-              <CardHeader className="p-4 sm:p-6 border-b">
+            // ... existing imports and code ...
+
+            <Card key={post.id} className="bg-card text-card-foreground rounded-xl shadow-lg border-2 border-indigo-400 dark:border-indigo-500">
+              <CardHeader className="p-4 sm:p-6 border-b-2 border-indigo-400/30 dark:border-indigo-500/30">
                 <div className="flex items-center justify-between">
-                  <CardTitle className="text-lg sm:text-xl font-bold text-gray-900">
+                  <CardTitle className="text-lg sm:text-xl font-bold text-foreground">
                     {post.platform === 'x' ? 'Twitter/X' : post.platform}
                   </CardTitle>
                   <span className={`
-                    px-3 sm:px-4 py-1 sm:py-1.5 rounded-full text-sm font-semibold
-                    ${post.status === 'scheduled' ? 'bg-indigo-100 text-indigo-700' : ''}
-                    ${post.status === 'posted' ? 'bg-green-100 text-green-700' : ''}
-                    ${post.status === 'failed' ? 'bg-red-100 text-red-700' : ''}
-                    ${post.status === 'draft' ? 'bg-gray-100 text-gray-700' : ''}
-                  `}>
+        px-3 sm:px-4 py-1 sm:py-1.5 rounded-full text-sm font-semibold
+        ${post.status === 'scheduled' ? 'bg-indigo-500 dark:bg-indigo-600 text-white' : ''}
+        ${post.status === 'posted' ? 'bg-emerald-500 dark:bg-emerald-600 text-white' : ''}
+        ${post.status === 'failed' ? 'bg-rose-500 dark:bg-rose-600 text-white' : ''}
+        ${post.status === 'draft' ? 'bg-slate-500 dark:bg-slate-600 text-white' : ''}
+      `}>
                     {post.status.charAt(0).toUpperCase() + post.status.slice(1)}
                   </span>
                 </div>
               </CardHeader>
               <CardContent className="p-4 sm:p-6">
-                <p className="text-gray-700 text-base sm:text-lg mb-4 whitespace-pre-wrap">
+                {/* Add back the post content */}
+                <p className="text-foreground text-base sm:text-lg mb-4 whitespace-pre-wrap">
                   {post.content}
                 </p>
-                <div className="flex items-center text-gray-500 mb-6">
+
+                {/* Add back the calendar/time display */}
+                <div className="flex items-center text-muted-foreground mb-6">
                   <CalendarIcon className="h-5 w-5 mr-2" />
                   <time className="text-sm">{formatDate(post.scheduled_time)}</time>
                 </div>
+
                 <div className="grid grid-cols-3 gap-2 sm:gap-3">
                   <Button
                     variant="outline"
                     onClick={() => handleEdit(post)}
                     disabled={deletePost.isPending || postNow.isPending}
-                    className="bg-white hover:bg-gray-50 border-2"
+                    className="border-2 border-indigo-400 dark:border-indigo-500 hover:bg-indigo-50 dark:hover:bg-indigo-950"
                   >
                     <PencilIcon className="h-4 w-4 mr-2" />
                     Edit
@@ -128,7 +133,7 @@ const Dashboard = () => {
                       variant="outline"
                       onClick={() => handlePostNow(post.id)}
                       disabled={deletePost.isPending || postNow.isPending}
-                      className="bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border-2 border-indigo-200"
+                      className="border-2 border-emerald-400 dark:border-emerald-500 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-950"
                     >
                       <SendIcon className="h-4 w-4 mr-2" />
                       Post Now
@@ -138,7 +143,7 @@ const Dashboard = () => {
                     variant="outline"
                     onClick={() => handleDelete(post.id)}
                     disabled={deletePost.isPending || postNow.isPending}
-                    className="bg-red-50 hover:bg-red-100 text-red-700 border-2 border-red-200"
+                    className="border-2 border-rose-400 dark:border-rose-500 text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950"
                   >
                     <TrashIcon className="h-4 w-4 mr-2" />
                     Delete
@@ -149,8 +154,8 @@ const Dashboard = () => {
           ))}
 
           {(!posts || posts.length === 0) && (
-            <div className="text-center py-12 sm:py-16 bg-white rounded-xl shadow-lg">
-              <p className="text-slate-600 text-base sm:text-lg">
+            <div className="text-center py-12 sm:py-16 bg-card rounded-xl shadow-lg border-2 border-indigo-400 dark:border-indigo-500">
+              <p className="text-muted-foreground text-base sm:text-lg">
                 No posts yet. Create your first post to get started!
               </p>
             </div>
