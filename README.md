@@ -2,6 +2,8 @@
 
 A social media automation tool designed for technical content creators. Schedule and manage posts across platforms with a focus on technical education content.
 
+<img src="https://www.visionstudioshub.com/img/fp.png" alt="Description" width="600" />
+
 ## Features
 - Post scheduling and management
 - Multi-platform support (currently X/Twitter)
