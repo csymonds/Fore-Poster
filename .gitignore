@@ -50,6 +50,7 @@ yarn-error.log*
 public/
 archive/
 *.mermaid
+deploy.sh
 
 # Testing
 .coverage
