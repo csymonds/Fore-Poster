@@ -26,7 +26,20 @@ class Config:
             cls.SQLALCHEMY_DATABASE_URI = f'postgresql://{db_user}:{db_password}@{db_host}:{db_port}/{db_name}'
         else:
             # Default to SQLite for non-production
-            cls.SQLALCHEMY_DATABASE_URI = 'sqlite:///fore_poster.db'
+            # Get DB_PATH from environment or use the instance directory
+            db_path = get_env_var('DB_PATH', None)
+            if not db_path:
+                # Use the Flask app's instance path (we'll set this in run.py)
+                from flask import current_app
+                if current_app:
+                    instance_path = current_app.instance_path
+                else:
+                    # Fallback if called outside application context
+                    instance_path = os.path.abspath(os.path.join(os.path.dirname(__file__), 'instance'))
+                db_path = os.path.join(instance_path, 'fore_poster.db')
+            
+            cls.SQLALCHEMY_DATABASE_URI = f'sqlite:///{db_path}'
+            print(f"Using SQLite database at: {db_path}")
         
         # X API configs
         cls.X_API_KEY = get_env_var('X_API_KEY')

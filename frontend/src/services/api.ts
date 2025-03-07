@@ -34,6 +34,23 @@ interface ApiError {
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '/api';
 
+/**
+ * Helper function to consistently build API URLs
+ */
+const getFullUrl = (endpoint: string): string => {
+  // Remove any trailing slash from base URL
+  const baseUrl = API_BASE_URL.endsWith('/') 
+    ? API_BASE_URL.slice(0, -1) 
+    : API_BASE_URL;
+  
+  // Ensure endpoint starts with a slash
+  const formattedEndpoint = endpoint.startsWith('/') 
+    ? endpoint 
+    : `/${endpoint}`;
+  
+  return `${baseUrl}${formattedEndpoint}`;
+};
+
 const getAuthHeaders = () => {
   const token = localStorage.getItem('token');
   return {
@@ -57,25 +74,32 @@ const handleApiError = async (response: Response): Promise<never> => {
 
 export class AuthApi {
   static async login(username: string, password: string): Promise<string> {
-    const response = await fetch(`${API_BASE_URL}/login`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ username, password }),
-    });
+    const url = getFullUrl('login');
+    
+    try {
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ username, password }),
+      });
+      
+      if (!response.ok) {
+        return handleApiError(response);
+      }
 
-    if (!response.ok) {
-      return handleApiError(response);
+      const data = await response.json();
+      return data.token;
+    } catch (error) {
+      console.error('Network error during login:', error);
+      throw error;
     }
-
-    const data = await response.json();
-    return data.token;
   }
 
   static async validateToken(token: string): Promise<boolean> {
     try {
-      const response = await fetch(`${API_BASE_URL}/posts`, {
+      const response = await fetch(getFullUrl('posts'), {
         headers: {
           'Authorization': `Bearer ${token}`,
         },
@@ -89,7 +113,7 @@ export class AuthApi {
 
 export class PostsApi {
   static async getPosts(): Promise<Post[]> {
-    const response = await fetch(`${API_BASE_URL}/posts`, {
+    const response = await fetch(getFullUrl('posts'), {
       headers: getAuthHeaders(),
     });
 
@@ -101,7 +125,7 @@ export class PostsApi {
   }
 
   static async createPost(post: CreatePostPayload): Promise<Post> {
-    const response = await fetch(`${API_BASE_URL}/posts`, {
+    const response = await fetch(getFullUrl('posts'), {
       method: 'POST',
       headers: getAuthHeaders(),
       body: JSON.stringify(post),
@@ -115,7 +139,7 @@ export class PostsApi {
   }
 
   static async updatePost(id: number, post: UpdatePostPayload): Promise<Post> {
-    const response = await fetch(`${API_BASE_URL}/posts/${id}`, {
+    const response = await fetch(getFullUrl(`posts/${id}`), {
       method: 'PUT',
       headers: getAuthHeaders(),
       body: JSON.stringify(post),
@@ -129,7 +153,7 @@ export class PostsApi {
   }
 
   static async deletePost(id: number): Promise<void> {
-    const response = await fetch(`${API_BASE_URL}/posts/${id}`, {
+    const response = await fetch(getFullUrl(`posts/${id}`), {
       method: 'DELETE',
       headers: getAuthHeaders(),
     });
@@ -140,7 +164,7 @@ export class PostsApi {
   }
 
   static async postNow(id: number): Promise<Post> {
-    const response = await fetch(`${API_BASE_URL}/posts/${id}`, {
+    const response = await fetch(getFullUrl(`posts/${id}`), {
       method: 'PUT',
       headers: getAuthHeaders(),
       body: JSON.stringify({ status: 'post_now' }),

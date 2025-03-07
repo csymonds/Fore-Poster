@@ -168,9 +168,7 @@ export const LoginForm = () => {
     e.preventDefault();
     setIsLoading(true);
     try {
-      console.log('Login form data:', formData);
       await auth.login(formData.username, formData.password);
-      console.log('Login successful');
     } catch (err) {
       console.error('Login submission error:', err);
     } finally {

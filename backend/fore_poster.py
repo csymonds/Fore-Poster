@@ -12,8 +12,40 @@ from functools import wraps
 from config import Config
 from datetime import datetime, timedelta
 import pytz
+import hashlib
 
 CORS_ORIGINS = os.getenv('CORS_ORIGINS', 'http://localhost:5173,http://localhost:4173').split(',')
+
+# Cross-platform password hashing utilities
+def robust_password_hash(password):
+    """
+    Create a password hash that works across environments.
+    Falls back to different methods if preferred ones aren't available.
+    """
+    # Check if scrypt is available (default in newer Python versions)
+    if hasattr(hashlib, 'scrypt'):
+        try:
+            return generate_password_hash(password)  # Default is scrypt
+        except Exception:
+            pass  # Fall through to alternatives
+    
+    # Use pbkdf2 which is widely available
+    return generate_password_hash(password, method='pbkdf2:sha256')
+
+def robust_password_verify(pwhash, password):
+    """
+    Verify a password against a hash in a way that works across environments.
+    """
+    try:
+        logging.info(f"Verifying password against hash: {pwhash[:20]}...")
+        result = check_password_hash(pwhash, password)
+        logging.info(f"Standard verification result: {result}")
+        return result
+    except Exception as e:
+        # If standard check fails (rare), log it with details
+        logging.error(f"Password verification error: {str(e)}")
+        logging.error(f"Hash format: {pwhash[:10]}...")
+        return False
 
 def get_eastern_tz():
     """Get US Eastern timezone."""
@@ -110,12 +142,13 @@ def setup_logging(app):
 app = Flask(__name__)
 setup_logging(app)
 
-# Enable CORS for all routes
+# Configure CORS
 CORS(app, resources={
     r"/api/*": {
-        "origins": CORS_ORIGINS,  # Use environment variable
-        "methods": ["GET", "POST", "PUT", "DELETE"],
-        "allow_headers": ["Content-Type", "Authorization"]
+        "origins": CORS_ORIGINS,
+        "methods": ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+        "allow_headers": ["Content-Type", "Authorization"],
+        "supports_credentials": True
     }
 })
 
@@ -231,12 +264,25 @@ x_client = XClient()
 
 @app.route('/api/login', methods=['POST'])
 def login():
-    data = request.get_json()
-    user = User.query.filter_by(username=data['username']).first()
-    
-    if user and check_password_hash(user.password, data['password']):
-        return jsonify({'token': auth.generate_token(user.id)})
-    return jsonify({'error': 'Invalid credentials'}), 401
+    try:
+        data = request.get_json()
+        username = data.get('username')
+        password = data.get('password')
+        
+        user = User.query.filter_by(username=username).first()
+        if not user:
+            return jsonify({'error': 'Invalid credentials'}), 401
+        
+        verified = robust_password_verify(user.password, password)
+        
+        if verified:
+            token = auth.generate_token(user.id)
+            return jsonify({'token': token})
+        
+        return jsonify({'error': 'Invalid credentials'}), 401
+    except Exception as e:
+        app.logger.error(f"Login error: {str(e)}", exc_info=True)
+        return jsonify({'error': 'Server error during login'}), 500
 
 @app.route('/api/credentials', methods=['PUT'])
 @auth.require_auth
@@ -244,10 +290,10 @@ def update_credentials():
     data = request.get_json()
     user = User.query.get(request.user_id)
     
-    if not check_password_hash(user.password, data['current_password']):
+    if not robust_password_verify(user.password, data['current_password']):
         return jsonify({'error': 'Invalid current password'}), 401
         
-    user.password = generate_password_hash(data['new_password'])
+    user.password = robust_password_hash(data['new_password'])
     db.session.commit()
     return jsonify({'message': 'Password updated'})
 
@@ -392,9 +438,9 @@ if __name__ == '__main__':
         if not User.query.first():
             default_user = User(
                 username='admin',
-                password=generate_password_hash('admin')
+                password=robust_password_hash('admin')
             )
             db.session.add(default_user)
             db.session.commit()
             app.logger.info('Created default admin user')
-    app.run(debug=True)
+    app.run(debug=True, port=8000)
