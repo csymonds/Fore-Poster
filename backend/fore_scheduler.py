@@ -81,21 +81,43 @@ class PostScheduler:
                 
     def process_post(self, post):
         try:
-            result = self.x_client.post(post.content)
+            # Check if post has an image
+            image_path = None
+            if post.image_filename:
+                # Get absolute path to instance folder
+                from flask import current_app
+                instance_path = current_app.instance_path
+                image_path = os.path.join(instance_path, 'uploads', post.image_filename)
+                logger.info(f"Post has image: {image_path}")
+                # Check if the image file exists
+                if not os.path.exists(image_path):
+                    logger.warning(f"Image file not found at {image_path}")
+                    image_path = None
+            
+            # Post with or without image
+            result = self.x_client.post(post.content, image_path)
             
             if result['success']:
                 post.status = 'posted'
                 post.post_id = result['post_id']
                 db.session.commit()
                 
-                self.notifier.send_notification(
-                    subject="Post Successfully Published",
-                    message=f"""
+                # Prepare notification message
+                notification_message = f"""
 Post ID: {post.id}
 Content: {post.content}
 Platform ID: {post.post_id}
 Time: {datetime.utcnow().isoformat()}
-                    """
+"""
+                # Add image info if applicable
+                if image_path:
+                    notification_message += f"Image: {post.image_filename}\n"
+                if 'warning' in result:
+                    notification_message += f"Warning: {result['warning']}\n"
+                
+                self.notifier.send_notification(
+                    subject="Post Successfully Published",
+                    message=notification_message
                 )
             else:
                 post.status = 'failed'
@@ -108,7 +130,7 @@ Post ID: {post.id}
 Content: {post.content}
 Error: {result.get('error', 'Unknown error')}
 Time: {datetime.utcnow().isoformat()}
-                    """
+"""
                 )
                 
         except Exception as e:

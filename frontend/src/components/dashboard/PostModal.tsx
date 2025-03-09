@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import DatePicker from 'react-datepicker';
 import "react-datepicker/dist/react-datepicker.css";
 import {
@@ -10,8 +10,9 @@ import {
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
-import { CalendarIcon } from 'lucide-react';
-import { Post } from '@/services/api';
+import { Input } from '@/components/ui/input';
+import { CalendarIcon, ImageIcon, X, Loader2 } from 'lucide-react';
+import { Post, PostsApi } from '@/services/api';
 import { useCreatePost, useUpdatePost } from '@/hooks/usePosts';
 
 interface PostModalProps {
@@ -23,6 +24,14 @@ interface PostModalProps {
 const PostModal: React.FC<PostModalProps> = ({ isOpen, onClose, post }) => {
   const [content, setContent] = useState('');
   const [scheduledTime, setScheduledTime] = useState<Date>(new Date());
+  const [imageUrl, setImageUrl] = useState<string | null | undefined>(undefined);
+  const [imageFilename, setImageFilename] = useState<string | null | undefined>(undefined);
+  const [isUploading, setIsUploading] = useState(false);
+  const [uploadError, setUploadError] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Maximum file size: 16MB
+  const MAX_FILE_SIZE = 16 * 1024 * 1024;
 
   // Reset form when modal opens/closes or post changes
   useEffect(() => {
@@ -31,25 +40,78 @@ const PostModal: React.FC<PostModalProps> = ({ isOpen, onClose, post }) => {
         // Editing existing post
         setContent(post.content);
         setScheduledTime(new Date(post.scheduled_time));
+        setImageUrl(post.image_url);
+        setImageFilename(post.image_filename);
       } else {
         // Creating new post
         setContent('');
         setScheduledTime(new Date());
+        setImageUrl(undefined);
+        setImageFilename(undefined);
       }
+      setIsUploading(false);
+      setUploadError(null);
     }
   }, [isOpen, post]);
 
   const createPost = useCreatePost();
   const updatePost = useUpdatePost();
 
+  const handleImageUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const files = event.target.files;
+    setUploadError('');
+    
+    if (files && files.length > 0) {
+      const file = files[0];
+      
+      // Check file size
+      if (file.size > MAX_FILE_SIZE) {
+        setUploadError(`File size exceeds ${MAX_FILE_SIZE / (1024 * 1024)}MB limit`);
+        event.target.value = ''; // Reset file input
+        return;
+      }
+      
+      setIsUploading(true);
+      try {
+        const response = await PostsApi.uploadImage(file);
+        setImageUrl(response.url);
+        setImageFilename(response.filename);
+        setUploadError('');
+      } catch (error) {
+        setUploadError('Failed to upload image');
+        console.error('Image upload error:', error);
+      } finally {
+        setIsUploading(false);
+      }
+    }
+  };
+
+  const handleRemoveImage = () => {
+    setImageUrl(undefined);
+    setImageFilename(undefined);
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    if (isUploading) {
+      alert("Please wait for image upload to complete before saving");
+      return;
+    }
+    
     try {
       const payload = {
         content,
         scheduled_time: scheduledTime.toISOString(),
         platform: 'x',
-        status: 'scheduled' as const
+        status: 'scheduled' as const,
+        // If we're editing a post and image was removed, explicitly set to null
+        // This ensures the database removes the image references
+        image_url: (post && post.image_url && imageUrl === undefined) ? null : imageUrl,
+        image_filename: (post && post.image_filename && imageFilename === undefined) ? null : imageFilename
       };
 
       if (post) {
@@ -83,6 +145,53 @@ const PostModal: React.FC<PostModalProps> = ({ isOpen, onClose, post }) => {
               className="resize-none"
               required
             />
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="image">Image</Label>
+            <div className="flex flex-col gap-2">
+              <Input
+                ref={fileInputRef}
+                type="file"
+                id="image"
+                accept="image/*"
+                onChange={handleImageUpload}
+                disabled={isUploading}
+                className="cursor-pointer"
+              />
+
+              {isUploading && (
+                <div className="flex items-center gap-2 text-muted-foreground">
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  <span>Uploading...</span>
+                </div>
+              )}
+
+              {uploadError && (
+                <div className="text-red-500 text-sm">{uploadError}</div>
+              )}
+
+              {imageUrl && (
+                <div className="relative mt-2">
+                  <img 
+                    src={imageUrl}
+                    alt="Preview" 
+                    className="w-full h-auto rounded-md border border-border object-cover max-h-[200px]" 
+                    onError={(e) => {
+                      console.error(`Failed to load image: ${imageUrl}`);
+                      e.currentTarget.style.display = 'none';
+                    }}
+                  />
+                  <button
+                    type="button"
+                    onClick={handleRemoveImage}
+                    className="absolute top-2 right-2 bg-red-500 text-white rounded-full p-1 hover:bg-red-600 transition-colors"
+                  >
+                    <X className="h-4 w-4" />
+                  </button>
+                </div>
+              )}
+            </div>
           </div>
 
           <div className="space-y-2">
@@ -120,7 +229,7 @@ const PostModal: React.FC<PostModalProps> = ({ isOpen, onClose, post }) => {
             </Button>
             <Button
               type="submit"
-              disabled={createPost.isPending || updatePost.isPending}
+              disabled={createPost.isPending || updatePost.isPending || isUploading}
               className="bg-indigo-500 hover:bg-indigo-600 text-white"
             >
               {createPost.isPending || updatePost.isPending ? 'Saving...' : 'Save'}
