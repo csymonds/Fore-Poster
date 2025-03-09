@@ -10,8 +10,8 @@ export interface Post {
   status: 'draft' | 'scheduled' | 'posted' | 'failed';
   platform: string;
   post_id?: string;
-  image_url?: string;
-  image_filename?: string;
+  image_url?: string | null;
+  image_filename?: string | null;
 }
 
 export interface CreatePostPayload {
@@ -19,8 +19,8 @@ export interface CreatePostPayload {
   scheduled_time: string;
   platform: string;
   status: Post['status']; // Required, will always be set to 'draft' by default
-  image_url?: string;
-  image_filename?: string;
+  image_url?: string | null;
+  image_filename?: string | null;
 }
 
 export interface UpdatePostPayload {
@@ -28,8 +28,8 @@ export interface UpdatePostPayload {
   scheduled_time?: string;
   platform?: string;
   status?: Post['status'];
-  image_url?: string;
-  image_filename?: string;
+  image_url?: string | null;
+  image_filename?: string | null;
 }
 
 export interface ImageUploadResponse {

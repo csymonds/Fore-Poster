@@ -525,14 +525,24 @@ def manage_single_post(post_id):
             if 'status' in data:
                 post.status = data['status']
             
-            # Handle image updates
+            # Handle image updates - explicitly handle null values
             if 'image_filename' in data:
-                post.image_filename = data['image_filename']
-                
+                # If null is passed, clear the image filename
+                if data['image_filename'] is None:
+                    app.logger.info(f"Clearing image filename for post {post_id}")
+                    post.image_filename = None
+                else:
+                    post.image_filename = data['image_filename']
+            
             if 'image_url' in data:
-                post.image_url = data['image_url']
-                
-            # Log whether we have an image
+                # If null is passed, clear the image URL
+                if data['image_url'] is None:
+                    app.logger.info(f"Clearing image URL for post {post_id}")
+                    post.image_url = None
+                else:
+                    post.image_url = data['image_url']
+            
+            # Log whether we have an image after update
             if post.image_url:
                 app.logger.info(f"Post updated with image: {post.image_filename}")
             else:

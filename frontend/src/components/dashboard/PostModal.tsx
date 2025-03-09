@@ -109,13 +109,17 @@ const PostModal: React.FC<PostModalProps> = ({ isOpen, onClose, post }) => {
     }
     
     try {
+      // When updating a post and the image has been removed,
+      // explicitly set image fields to null to remove them in the database
       const payload = {
         content,
         scheduled_time: scheduledTime.toISOString(),
         platform: 'x',
         status: 'scheduled' as const,
-        image_url: imageUrl,
-        image_filename: imageFilename
+        // If we're editing a post and image was removed, explicitly set to null
+        // This ensures the database removes the image references
+        image_url: (post && post.image_url && imageUrl === undefined) ? null : imageUrl,
+        image_filename: (post && post.image_filename && imageFilename === undefined) ? null : imageFilename
       };
 
       console.log("Submitting post with payload:", payload);
