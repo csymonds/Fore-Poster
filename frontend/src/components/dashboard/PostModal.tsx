@@ -24,11 +24,14 @@ interface PostModalProps {
 const PostModal: React.FC<PostModalProps> = ({ isOpen, onClose, post }) => {
   const [content, setContent] = useState('');
   const [scheduledTime, setScheduledTime] = useState<Date>(new Date());
-  const [imageUrl, setImageUrl] = useState<string | undefined>(undefined);
-  const [imageFilename, setImageFilename] = useState<string | undefined>(undefined);
+  const [imageUrl, setImageUrl] = useState<string | null | undefined>(undefined);
+  const [imageFilename, setImageFilename] = useState<string | null | undefined>(undefined);
   const [isUploading, setIsUploading] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Maximum file size: 16MB
+  const MAX_FILE_SIZE = 16 * 1024 * 1024;
 
   // Reset form when modal opens/closes or post changes
   useEffect(() => {
@@ -54,41 +57,32 @@ const PostModal: React.FC<PostModalProps> = ({ isOpen, onClose, post }) => {
   const createPost = useCreatePost();
   const updatePost = useUpdatePost();
 
-  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    setIsUploading(true);
-    setUploadError(null);
-
-    try {
-      console.log(`Attempting to upload file: ${file.name}, size: ${file.size} bytes`);
+  const handleImageUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const files = event.target.files;
+    setUploadError('');
+    
+    if (files && files.length > 0) {
+      const file = files[0];
       
-      // Direct upload without using the hook - this gives us more control
-      const response = await PostsApi.uploadImage(file);
-      console.log("Upload successful:", response);
+      // Check file size
+      if (file.size > MAX_FILE_SIZE) {
+        setUploadError(`File size exceeds ${MAX_FILE_SIZE / (1024 * 1024)}MB limit`);
+        event.target.value = ''; // Reset file input
+        return;
+      }
       
-      // Update state with upload response
-      setImageUrl(response.url);
-      setImageFilename(response.filename);
-      
-      // Verify the image URL works by trying to load it
+      setIsUploading(true);
       try {
-        await fetch(response.url, { method: 'HEAD' });
-        console.log("Verified image URL is accessible:", response.url);
-      } catch (fetchError) {
-        console.warn("Image URL may not be directly accessible:", fetchError);
-        // We'll still use the URL provided by the server, but logged the warning
+        const response = await PostsApi.uploadImage(file);
+        setImageUrl(response.url);
+        setImageFilename(response.filename);
+        setUploadError('');
+      } catch (error) {
+        setUploadError('Failed to upload image');
+        console.error('Image upload error:', error);
+      } finally {
+        setIsUploading(false);
       }
-    } catch (error) {
-      console.error('Upload failed:', error);
-      setUploadError(error instanceof Error ? error.message : 'Upload failed');
-      // Reset file input
-      if (fileInputRef.current) {
-        fileInputRef.current.value = '';
-      }
-    } finally {
-      setIsUploading(false);
     }
   };
 
@@ -109,8 +103,6 @@ const PostModal: React.FC<PostModalProps> = ({ isOpen, onClose, post }) => {
     }
     
     try {
-      // When updating a post and the image has been removed,
-      // explicitly set image fields to null to remove them in the database
       const payload = {
         content,
         scheduled_time: scheduledTime.toISOString(),
@@ -122,17 +114,13 @@ const PostModal: React.FC<PostModalProps> = ({ isOpen, onClose, post }) => {
         image_filename: (post && post.image_filename && imageFilename === undefined) ? null : imageFilename
       };
 
-      console.log("Submitting post with payload:", payload);
-
       if (post) {
-        const result = await updatePost.mutateAsync({ 
+        await updatePost.mutateAsync({ 
           id: post.id, 
           post: payload 
         });
-        console.log("Post updated successfully:", result);
       } else {
-        const result = await createPost.mutateAsync(payload);
-        console.log("Post created successfully:", result);
+        await createPost.mutateAsync(payload);
       }
       onClose();
     } catch (error) {

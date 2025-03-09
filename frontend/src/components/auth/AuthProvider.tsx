@@ -81,17 +81,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   useEffect(() => {
     const initAuth = async () => {
       const token = safeStorage.getItem('token');
-      console.log('Initial token:', token ? 'Present' : 'Not found');
       
       if (token) {
-        console.log('Validating token...');
         const isValid = await validateToken(token);
-        console.log('Token validation result:', isValid);
 
         if (isValid) {
           setUser({ token });
         } else {
-          console.log('Removing invalid token');
           safeStorage.removeItem('token');
         }
       }
@@ -103,9 +99,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const validateToken = async (token: string): Promise<boolean> => {
     try {
-      console.log('Making validation request...');
       const isValid = await AuthApi.validateToken(token);
-      console.log('Validation response:', isValid);
       return isValid;
     } catch (err) {
       console.error('Token validation error:', err);
@@ -116,9 +110,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const login = async (username: string, password: string): Promise<void> => {
     try {
-      console.log('Attempting login...');
       const token = await AuthApi.login(username, password);
-      console.log('Login successful, token received:', token ? 'Present' : 'Missing');
       
       if (!token) {
         throw new Error('No token received from server');

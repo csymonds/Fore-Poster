@@ -105,19 +105,30 @@ def is_scheduled_time_future(dt: datetime) -> bool:
     return dt > datetime.now(pytz.UTC)
 
 def post_now_handler(post):
-    """Handle immediate posting of a post."""
-    app.logger.info(f"Handling immediate post for post {post.id}")
+    """Handle immediate posting of a post.
+    
+    This function processes an immediate post request, including handling
+    any attached images.
+    
+    Args:
+        post: The Post object to publish
+        
+    Returns:
+        JSON response with result information
+    """
+    app.logger.info(f"Processing immediate post for ID: {post.id}")
     
     if post.platform == 'x':
         # Check if post has an image
         image_path = None
         if post.image_filename:
             image_path = os.path.join(UPLOAD_FOLDER, post.image_filename)
-            app.logger.info(f"Post has image: {image_path}")
             # Check if the image file exists
             if not os.path.exists(image_path):
-                app.logger.warning(f"Image file not found at {image_path}")
+                app.logger.warning(f"Image file not found: {image_path}")
                 image_path = None
+            else:
+                app.logger.info(f"Including image: {post.image_filename}")
         
         # Post with or without image
         result = x_client.post(post.content, image_path)
@@ -126,10 +137,10 @@ def post_now_handler(post):
             post.post_id = result['post_id']
             post.status = 'posted'
             db.session.commit()
-            app.logger.info(f"Successfully posted {post.id} to X")
             
             # Check if there was a warning about image upload
             if 'warning' in result:
+                app.logger.warning(f"Post successful but with image warning: {result['warning']}")
                 return jsonify({
                     'id': post.id,
                     'status': post.status,
@@ -145,9 +156,10 @@ def post_now_handler(post):
         else:
             post.status = 'failed'
             db.session.commit()
-            app.logger.error(f"Failed to post {post.id} to X: {result['error']}")
-            return jsonify({'error': result['error']}), 500
+            app.logger.error(f"Post failed: {result.get('error', 'Unknown error')}")
+            return jsonify({'error': result.get('error', 'Failed to post')}), 500
     
+    app.logger.error(f"Unsupported platform: {post.platform}")
     return jsonify({'error': f'Unsupported platform: {post.platform}'}), 400
 
 # Set up logging
@@ -190,12 +202,27 @@ def setup_logging(app):
 app = Flask(__name__)
 setup_logging(app)
 
+# Load configuration
+load_environment()
+Config.init_app(os.getenv('APP_ENV', 'development'))
+app.config.from_object(Config)
+
 # Set up upload folder
-UPLOAD_FOLDER = os.path.join(app.instance_path, 'uploads')
+upload_dir = os.getenv('UPLOAD_FOLDER', 'instance/uploads')
+UPLOAD_FOLDER = os.path.join(app.instance_path, upload_dir.replace('instance/', ''))
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
-app.config['ALLOWED_EXTENSIONS'] = {'png', 'jpg', 'jpeg', 'gif'}
-app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16MB max upload size
+
+# Get allowed extensions from environment
+allowed_extensions_str = os.getenv('ALLOWED_FILE_EXTENSIONS', 'png,jpg,jpeg,gif')
+app.config['ALLOWED_EXTENSIONS'] = set(ext.strip() for ext in allowed_extensions_str.split(','))
+
+# Set max content length from environment
+max_upload_size = int(os.getenv('MAX_UPLOAD_SIZE_MB', '16'))
+app.config['MAX_CONTENT_LENGTH'] = max_upload_size * 1024 * 1024  # Convert to bytes
+
+# Cache duration for static files
+CACHE_MAX_AGE = int(os.getenv('CACHE_MAX_AGE', '86400'))  # Default: 1 day
 
 # Configure CORS using the environment variable
 CORS(app, resources={r"/*": {"origins": CORS_ORIGINS}}, 
@@ -203,16 +230,40 @@ CORS(app, resources={r"/*": {"origins": CORS_ORIGINS}},
      allow_headers=["Content-Type", "Authorization"],
      methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"])
 
-# Load configuration
-load_environment()
-Config.init_app(os.getenv('APP_ENV', 'development'))
-app.config.from_object(Config)
 db = SQLAlchemy(app)
 
 def allowed_file(filename):
     """Check if the file has an allowed extension."""
     return '.' in filename and \
            filename.lower().split('.')[-1] in app.config['ALLOWED_EXTENSIONS']
+
+def validate_image_content(file_stream):
+    """Validate that the file contains actual image data by checking its header.
+    
+    Args:
+        file_stream: A file-like object containing the image data
+        
+    Returns:
+        bool: True if the file appears to be a valid image, False otherwise
+    """
+    # Save current position
+    pos = file_stream.tell()
+    
+    # Read first 12 bytes for signature check
+    header = file_stream.read(12)
+    
+    # Reset to initial position
+    file_stream.seek(pos)
+    
+    # Check common image signatures
+    if header.startswith(b'\xFF\xD8\xFF'):  # JPEG
+        return True
+    if header.startswith(b'\x89PNG\r\n\x1A\n'):  # PNG
+        return True
+    if header.startswith(b'GIF87a') or header.startswith(b'GIF89a'):  # GIF
+        return True
+        
+    return False
 
 class User(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -316,28 +367,41 @@ Request:
 
 @app.after_request
 def log_response(response):
+    """Log API response details without attempting to read file response bodies.
+    
+    This function logs API responses but handles file responses differently
+    to avoid errors with Flask's direct_passthrough mode.
+    """
     # Extract basic response info
-    log_message = f"""
+    if response.status_code >= 400:
+        # Only log detailed info for errors
+        log_message = f"""
 Response:
   Status: {response.status}
   Headers: {dict(response.headers)}"""
-    
-    # Only try to log the body for non-file responses
-    # Check for content-type or direct_passthrough flag
-    if not getattr(response, 'direct_passthrough', False) and \
-       not response.mimetype.startswith(('image/', 'video/', 'audio/')):
-        try:
-            body = response.get_data(as_text=True)
-            # If body is too large, truncate it
-            if len(body) > 1000:
-                body = body[:1000] + "... [truncated]"
-            log_message += f"\n  Body: {body}"
-        except Exception as e:
-            log_message += f"\n  Body: [Could not read response body: {str(e)}]"
-    else:
-        log_message += "\n  Body: [File or binary data - not logged]"
         
-    app.logger.info(log_message)
+        # Only try to log the body for non-file responses
+        if not getattr(response, 'direct_passthrough', False) and \
+           not response.mimetype.startswith(('image/', 'video/', 'audio/')):
+            try:
+                body = response.get_data(as_text=True)
+                # If body is too large, truncate it
+                if len(body) > 500:
+                    body = body[:500] + "... [truncated]"
+                log_message += f"\n  Body: {body}"
+            except Exception:
+                log_message += "\n  Body: [Could not read response body]"
+        else:
+            log_message += "\n  Body: [File or binary data - not logged]"
+            
+        app.logger.warning(log_message)
+    elif response.status_code >= 300:
+        # Basic logging for redirects
+        app.logger.info(f"Response: {response.status}")
+    else:
+        # Minimal logging for successful responses
+        app.logger.info(f"Response: {response.status}")
+        
     return response
 
 @app.errorhandler(Exception)
@@ -578,27 +642,40 @@ def test_connection():
 # Create a direct file endpoint that avoids using Flask's built-in static handler
 @app.route('/files/<path:filename>', methods=['GET', 'OPTIONS'])
 def serve_uploaded_file(filename):
-    """Serve uploaded files from the uploads directory."""
+    """Serve uploaded files from the uploads directory.
+    
+    This endpoint serves files directly without authentication to allow
+    browsers to load images without CORS issues.
+    
+    Args:
+        filename: The name of the file to serve
+        
+    Returns:
+        The file response or an error JSON
+    """
     if request.method == 'OPTIONS':
         # CORS preflight handling is done by Flask-CORS extension
         return app.make_default_options_response()
         
     try:
-        app.logger.info(f"Serving uploaded file: {filename}")
-        
-        # Get the full file path
-        file_path = os.path.join(UPLOAD_FOLDER, filename)
+        # Prevent directory traversal attacks
+        if '..' in filename or filename.startswith('/'):
+            app.logger.warning(f"Possible directory traversal attempt: {filename}")
+            return jsonify({'error': 'Invalid filename'}), 400
+            
+        # Additional validation - ensure the file path is within the uploads directory
+        file_path = os.path.abspath(os.path.join(UPLOAD_FOLDER, filename))
+        if not file_path.startswith(os.path.abspath(UPLOAD_FOLDER)):
+            app.logger.warning(f"Path traversal attempt detected: {filename}")
+            return jsonify({'error': 'Access denied'}), 403
         
         # Check if file exists before trying to serve it
         if not os.path.isfile(file_path):
-            app.logger.error(f"File not found: {file_path}")
             return jsonify({'error': 'File not found'}), 404
         
-        # Serve the file - CORS headers will be added by the Flask-CORS extension
+        # Serve the file with caching headers
         response = send_from_directory(UPLOAD_FOLDER, filename, conditional=True)
-        
-        # Add caching headers
-        response.headers.add('Cache-Control', 'public, max-age=86400')  # Cache for 1 day
+        response.headers.add('Cache-Control', f'public, max-age={CACHE_MAX_AGE}')
         
         return response
     except Exception as e:
@@ -606,24 +683,29 @@ def serve_uploaded_file(filename):
         return jsonify({'error': f"Error serving file: {str(e)}"}), 500
 
 # Handle file uploads
-@app.route('/api/upload', methods=['POST'])
+@app.route('/api/upload', methods=['POST', 'OPTIONS'])
 @auth.require_auth
 def upload_file():
     """Upload a file and return its URL."""
-    try:
-        app.logger.info(f"Processing file upload from {request.remote_addr}")
+    # Handle preflight CORS requests
+    if request.method == 'OPTIONS':
+        return app.make_default_options_response()
         
+    try:
         if 'file' not in request.files:
-            app.logger.error("No file part in the request")
             return jsonify({'error': 'No file part'}), 400
         
         file = request.files['file']
         
         if file.filename == '':
-            app.logger.error("No file selected")
             return jsonify({'error': 'No file selected'}), 400
         
         if file and allowed_file(file.filename):
+            # Additional content-based validation
+            if not validate_image_content(file.stream):
+                app.logger.warning(f"Invalid image content detected: {file.filename}")
+                return jsonify({'error': 'Invalid image file'}), 400
+            
             # Generate unique filename
             original_filename = secure_filename(file.filename)
             file_extension = original_filename.rsplit('.', 1)[1].lower()
@@ -637,8 +719,7 @@ def upload_file():
             base_url = request.host_url.rstrip('/')
             file_url = f"{base_url}/files/{unique_filename}"
             
-            app.logger.info(f"File saved as {unique_filename}")
-            app.logger.info(f"Generated URL: {file_url}")
+            app.logger.info(f"File saved: {unique_filename}")
             
             return jsonify({
                 'filename': unique_filename,
@@ -646,7 +727,6 @@ def upload_file():
                 'original_filename': original_filename
             }), 201
         
-        app.logger.error("File type not allowed")
         return jsonify({'error': 'File type not allowed'}), 400
     
     except Exception as e:

@@ -198,14 +198,10 @@ export class PostsApi {
       if (!token) {
         throw new Error('Authentication token is missing');
       }
-
-      console.log(`Uploading file: ${file.name}, size: ${file.size} bytes`);
       
-      // Use the correct endpoint - 'upload' (singular)
+      // Use the correct endpoint
       const uploadUrl = getFullUrl('upload');
-      console.log(`Upload URL: ${uploadUrl}`);
       
-      // Make the request with appropriate headers
       const response = await fetch(uploadUrl, {
         method: 'POST',
         headers: {
@@ -215,15 +211,12 @@ export class PostsApi {
       });
 
       if (!response.ok) {
-        console.error(`Upload failed with status: ${response.status}`);
         return handleApiError(response);
       }
 
-      const data = await response.json();
-      console.log("Image upload successful, response:", data);
-      
-      return data;
+      return await response.json();
     } catch (error) {
+      // Only log errors
       console.error("Image upload error:", error);
       throw error;
     }

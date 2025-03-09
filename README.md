@@ -58,6 +58,7 @@ npm run dev
 ## Features
 - Post scheduling and management
 - Multi-platform support (currently X/Twitter)
+- Image uploads for social media posts
 - Development/Production environment handling
 - AWS SES integration for notifications
 - Secure authentication with JWT
@@ -71,6 +72,7 @@ fore-poster/
 ├── setup.sh              # Setup script for environment and dependencies
 ├── backend/              # Flask backend
 │   ├── instance/         # Database location
+│   │   └── uploads/      # Uploaded images storage directory
 │   ├── config.py         # Configuration management
 │   ├── env_handler.py    # Environment variable handling
 │   ├── fore_poster.py    # Main API application
@@ -120,3 +122,33 @@ If your environment variables aren't being picked up correctly:
 
 ## License
 MIT License - see LICENSE file for details
+
+## Image Upload Feature
+
+Fore-Poster supports adding images to your social media posts:
+
+### Supported Image Types
+- JPEG/JPG
+- PNG
+- GIF
+
+### Image Limitations
+- Maximum file size: 16MB
+- Images are stored in the backend/instance/uploads directory
+- When posting to X/Twitter, the image will be included in the post
+- Images can be added when creating a post or editing an existing one
+- Click the X button to remove an attached image
+
+### Configuration
+The image upload feature can be configured through these environment variables:
+
+```
+# Maximum file size in megabytes (default: 16)
+MAX_UPLOAD_SIZE_MB=16
+
+# Allowed file extensions (default: 'png,jpg,jpeg,gif')
+ALLOWED_FILE_EXTENSIONS=png,jpg,jpeg,gif
+
+# Cache duration for served images in seconds (default: 86400 - 1 day)
+CACHE_MAX_AGE=86400
+```
