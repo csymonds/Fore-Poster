@@ -11,7 +11,7 @@ import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
-import { CalendarIcon, ImageIcon, X, Loader2 } from 'lucide-react';
+import { CalendarIcon, X, Loader2 } from 'lucide-react';
 import { Post, PostsApi } from '@/services/api';
 import { useCreatePost, useUpdatePost } from '@/hooks/usePosts';
 
