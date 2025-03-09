@@ -52,6 +52,7 @@ archive/
 *.mermaid
 deploy.sh
 instance/
+dev_*
 
 # Testing
 .coverage
