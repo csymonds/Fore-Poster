@@ -87,8 +87,6 @@ const Dashboard = () => {
 
         <div className="space-y-6">
           {posts?.map((post) => (
-            // ... existing imports and code ...
-
             <Card key={post.id} className="bg-card text-card-foreground rounded-xl shadow-lg border-2 border-indigo-400 dark:border-indigo-500">
               <CardHeader className="p-4 sm:p-6 border-b-2 border-indigo-400/30 dark:border-indigo-500/30">
                 <div className="flex items-center justify-between">
@@ -107,12 +105,27 @@ const Dashboard = () => {
                 </div>
               </CardHeader>
               <CardContent className="p-4 sm:p-6">
-                {/* Add back the post content */}
+                {/* Post content */}
                 <p className="text-foreground text-base sm:text-lg mb-4 whitespace-pre-wrap">
                   {post.content}
                 </p>
 
-                {/* Add back the calendar/time display */}
+                {/* Display image if available */}
+                {post.image_url && (
+                  <div className="mb-4">
+                    <img 
+                      src={post.image_url}
+                      alt="Post attachment" 
+                      className="rounded-lg max-h-[300px] w-auto object-contain border border-border"
+                      onError={(e) => {
+                        console.error(`Failed to load image: ${post.image_url}`);
+                        e.currentTarget.style.display = 'none';
+                      }}
+                    />
+                  </div>
+                )}
+
+                {/* Calendar/time display */}
                 <div className="flex items-center text-muted-foreground mb-6">
                   <CalendarIcon className="h-5 w-5 mr-2" />
                   <time className="text-sm">{formatDate(post.scheduled_time)}</time>

@@ -10,6 +10,8 @@ export interface Post {
   status: 'draft' | 'scheduled' | 'posted' | 'failed';
   platform: string;
   post_id?: string;
+  image_url?: string;
+  image_filename?: string;
 }
 
 export interface CreatePostPayload {
@@ -17,6 +19,8 @@ export interface CreatePostPayload {
   scheduled_time: string;
   platform: string;
   status: Post['status']; // Required, will always be set to 'draft' by default
+  image_url?: string;
+  image_filename?: string;
 }
 
 export interface UpdatePostPayload {
@@ -24,6 +28,14 @@ export interface UpdatePostPayload {
   scheduled_time?: string;
   platform?: string;
   status?: Post['status'];
+  image_url?: string;
+  image_filename?: string;
+}
+
+export interface ImageUploadResponse {
+  filename: string;
+  url: string;
+  original_filename: string;
 }
 
 interface ApiError {
@@ -175,5 +187,45 @@ export class PostsApi {
     }
 
     return response.json();
+  }
+
+  static async uploadImage(file: File): Promise<ImageUploadResponse> {
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+
+      const token = localStorage.getItem('token');
+      if (!token) {
+        throw new Error('Authentication token is missing');
+      }
+
+      console.log(`Uploading file: ${file.name}, size: ${file.size} bytes`);
+      
+      // Use the correct endpoint - 'upload' (singular)
+      const uploadUrl = getFullUrl('upload');
+      console.log(`Upload URL: ${uploadUrl}`);
+      
+      // Make the request with appropriate headers
+      const response = await fetch(uploadUrl, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`
+        },
+        body: formData,
+      });
+
+      if (!response.ok) {
+        console.error(`Upload failed with status: ${response.status}`);
+        return handleApiError(response);
+      }
+
+      const data = await response.json();
+      console.log("Image upload successful, response:", data);
+      
+      return data;
+    } catch (error) {
+      console.error("Image upload error:", error);
+      throw error;
+    }
   }
 }
