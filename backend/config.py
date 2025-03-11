@@ -1,4 +1,5 @@
 import os
+import logging
 from env_handler import get_env_var
 
 class Config:
@@ -8,6 +9,9 @@ class Config:
     
     @classmethod
     def init_app(cls, env='development'):
+        # Set up logger
+        logger = logging.getLogger(__name__)
+        
         cls.TESTING = env == 'testing'
         cls.DEVELOPMENT = env == 'development'
         cls.PRODUCTION = env == 'production'
@@ -39,8 +43,8 @@ class Config:
                 db_path = os.path.join(instance_path, 'fore_poster.db')
             
             cls.SQLALCHEMY_DATABASE_URI = f'sqlite:///{db_path}'
-            print(f"Using SQLite database at: {db_path}")
-        
+            logger.info(f"Using SQLite database at: {db_path}")
+            
         # X API configs
         cls.X_API_KEY = get_env_var('X_API_KEY')
         cls.X_API_SECRET = get_env_var('X_API_SECRET')
@@ -53,7 +57,36 @@ class Config:
             cls.SES_SENDER = get_env_var('SES_SENDER')
             cls.SES_RECIPIENT = get_env_var('SES_RECIPIENT')
         
-        print("Env:", env)
+        logger.info(f"Environment: {env}")
         if cls.PRODUCTION:
-            print("PRODUCTION:", cls.PRODUCTION)
-            print("DATABASE_URL:", cls.SQLALCHEMY_DATABASE_URI)
+            logger.info(f"PRODUCTION: {cls.PRODUCTION}")
+            # Use safe_db_uri to hide credentials in logs
+            safe_db_uri = cls.get_safe_db_uri(cls.SQLALCHEMY_DATABASE_URI)
+            logger.info(f"DATABASE_URL: {safe_db_uri}")
+    
+    @staticmethod
+    def get_safe_db_uri(uri):
+        """Return a database URI with credentials masked for safe logging"""
+        if uri.startswith('sqlite'):
+            return uri
+            
+        # For PostgreSQL and other database URIs with credentials
+        try:
+            parts = uri.split('://')
+            if len(parts) != 2:
+                return '[INVALID_DB_URI_FORMAT]'
+                
+            protocol = parts[0]
+            rest = parts[1]
+            
+            # Split at @ to separate credentials from host info
+            if '@' in rest:
+                creds_part, host_part = rest.split('@', 1)
+                # Replace actual credentials with placeholder
+                return f"{protocol}://[CREDENTIALS_HIDDEN]@{host_part}"
+            else:
+                # No credentials in URI
+                return uri
+        except Exception:
+            # If any error occurs during parsing, return a generic safe string
+            return '[DB_URI_WITH_HIDDEN_CREDENTIALS]'

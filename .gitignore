@@ -54,6 +54,7 @@ archive/
 deploy.sh
 instance/
 dev_*
+TODO.md
 
 # Testing
 .coverage

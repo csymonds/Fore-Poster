@@ -1,3 +1,30 @@
+"""
+Fore-Poster - A Social Media Post Scheduling Application
+
+This module is the main application file for Fore-Poster, a web application that allows users 
+to schedule and manage posts for social media platforms. It provides a RESTful API for the 
+front-end client to interact with.
+
+Features:
+- User authentication with JWT tokens
+- Post scheduling and management
+- Image upload and handling
+- Social media platform integration (currently Twitter/X)
+- Timezone-aware scheduling
+
+The application follows a Flask-based architecture with SQLAlchemy for ORM.
+It handles both development (SQLite) and production (PostgreSQL) environments.
+
+Environment variables:
+- APP_ENV: Application environment (development, testing, production)
+- JWT_SECRET: Secret key for JWT token encoding/decoding
+- Database configuration (DB_USER, DB_PASSWORD, etc.)
+- Social media API credentials
+- AWS configuration for notifications
+
+Author: CJ Symonds
+License: Proprietary
+"""
 from flask import Flask, request, jsonify, send_from_directory
 from flask_cors import CORS
 from flask_sqlalchemy import SQLAlchemy
@@ -203,7 +230,8 @@ setup_logging(app)
 
 # Load configuration
 load_environment()
-Config.init_app(os.getenv('APP_ENV', 'development'))
+app_env = os.getenv('APP_ENV', 'development')
+Config.init_app(app_env)
 app.config.from_object(Config)
 
 # Set up upload folder
@@ -735,13 +763,26 @@ def upload_file():
 if __name__ == '__main__':
     with app.app_context():
         db.create_all()
-        # Create default user if none exists
+        
+        # Create default user if none exists, using environment variables if available
         if not User.query.first():
+            admin_username = get_env_var('ADMIN_USERNAME', 'admin')
+            admin_password = get_env_var('ADMIN_PASSWORD', 'admin')  # Should be set in .env
+            
             default_user = User(
-                username='admin',
-                password=robust_password_hash('admin')
+                username=admin_username,
+                password=robust_password_hash(admin_password)
             )
             db.session.add(default_user)
             db.session.commit()
-            app.logger.info('Created default admin user')
-    app.run(debug=True, port=8000)
+            app.logger.info(f'Created default admin user: {admin_username}')
+    
+    # Determine if debug mode should be enabled
+    # Never enable debug in production
+    debug_mode = app_env != 'production'
+    if app_env == 'production':
+        app.logger.info("Running in PRODUCTION mode - debug disabled")
+    else:
+        app.logger.info(f"Running in {app_env.upper()} mode - debug enabled")
+    
+    app.run(debug=debug_mode, port=8000)
