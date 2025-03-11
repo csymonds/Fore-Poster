@@ -1,8 +1,18 @@
 import os
 from dotenv import load_dotenv
 
-def load_environment():
-    """Load environment variables from .env file"""
+def load_environment(custom_env_file=None):
+    """Load environment variables from .env file
+    
+    Args:
+        custom_env_file: Optional path to a specific .env file to use
+    """
+    # If custom environment file is provided, try to load it first
+    if custom_env_file and os.path.exists(custom_env_file):
+        load_dotenv(custom_env_file)
+        print(f"Loaded environment from custom file: {custom_env_file}")
+        return
+
     # Try multiple possible locations for the env file
     possible_locations = [
         '.env',  # Current directory

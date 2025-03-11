@@ -40,14 +40,13 @@ def robust_password_verify(pwhash, password):
     Verify a password against a hash in a way that works across environments.
     """
     try:
-        logging.info(f"Verifying password against hash: {pwhash[:20]}...")
+        # Don't log any part of the hash or password for security reasons
+        app.logger.debug("Verifying password against hash (redacted)")
         result = check_password_hash(pwhash, password)
-        logging.info(f"Standard verification result: {result}")
         return result
     except Exception as e:
-        # If standard check fails (rare), log it with details
-        logging.error(f"Password verification error: {str(e)}")
-        logging.error(f"Hash format: {pwhash[:10]}...")
+        # If standard check fails (rare), log it without details
+        app.logger.error(f"Password verification error: {type(e).__name__}")
         return False
 
 def get_eastern_tz():
