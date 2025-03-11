@@ -6,7 +6,11 @@ Run this script after setting up your .env file.
 This will create the database and add an admin user.
 
 Usage:
-    python reset_db.py [--force]  # Use --force to skip confirmation prompts
+    python reset_db.py [--force] [ENV_FILE_PATH]
+    
+Arguments:
+    --force           Skip confirmation prompt (use with caution)
+    ENV_FILE_PATH     Optional path to a custom .env file
 """
 import os
 import sys
@@ -27,6 +31,8 @@ def parse_arguments():
     parser = argparse.ArgumentParser(description="Reset and initialize the Fore-Poster database")
     parser.add_argument('--force', action='store_true', 
                         help='Force reset without confirmation (use with caution)')
+    parser.add_argument('env_file', nargs='?', default=None,
+                        help='Path to a custom .env file to use')
     return parser.parse_args()
 
 # Add current directory to path if needed
@@ -39,7 +45,19 @@ try:
     from env_handler import load_environment, get_env_var
     
     BASE_DIR = Path(__file__).parent.absolute()
-    load_environment()
+    args = parse_arguments()
+    
+    # Load environment from custom file if provided
+    if args.env_file:
+        if os.path.exists(args.env_file):
+            load_environment(args.env_file)
+            logger.info(f"Loaded environment from custom file: {args.env_file}")
+        else:
+            logger.warning(f"Custom environment file not found: {args.env_file}")
+            load_environment()
+    else:
+        load_environment()
+        
     logger.info("Environment loaded")
 except ImportError as e:
     logger.error(f"Failed to import env_handler: {str(e)}")
@@ -133,7 +151,8 @@ def set_file_ownership(file_path, user=None):
         logger.warning("You may need to manually set proper ownership")
 
 def main():
-    args = parse_arguments()
+    # Use global args parsed at startup
+    global args
     
     # Determine environment
     app_env = get_env_var('APP_ENV', 'development')
