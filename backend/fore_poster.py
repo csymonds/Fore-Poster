@@ -43,6 +43,9 @@ import pytz
 import hashlib
 import uuid
 import os.path
+# Import shared modules
+from core.notification import notifier as _notifier_compat, init_notifier
+from core.posting import post_to_platform
 
 # Initialize logger first, but only once
 logger = logging.getLogger(__name__)
@@ -157,49 +160,41 @@ def post_now_handler(post):
     """
     app.logger.info(f"Processing immediate post for ID: {post.id}")
     
-    if post.platform == 'x':
-        # Check if post has an image
-        image_path = None
-        if post.image_filename:
-            image_path = os.path.join(UPLOAD_FOLDER, post.image_filename)
-            # Check if the image file exists
-            if not os.path.exists(image_path):
-                app.logger.warning(f"Image file not found: {image_path}")
-                image_path = None
-            else:
-                app.logger.info(f"Including image: {post.image_filename}")
+    # Check if post has an image
+    image_path = None
+    if post.image_filename:
+        image_path = os.path.join(UPLOAD_FOLDER, post.image_filename)
+    
+    # Use shared posting functionality
+    result = post_to_platform(post, x_client, image_path)
+    
+    if result['success']:
+        # Update database state
+        post.post_id = result['post_id']
+        post.status = 'posted'
+        db.session.commit()
         
-        # Post with or without image
-        result = x_client.post(post.content, image_path)
-        
-        if result['success']:
-            post.post_id = result['post_id']
-            post.status = 'posted'
-            db.session.commit()
-            
-            # Check if there was a warning about image upload
-            if 'warning' in result:
-                app.logger.warning(f"Post successful but with image warning: {result['warning']}")
-                return jsonify({
-                    'id': post.id,
-                    'status': post.status,
-                    'post_id': post.post_id,
-                    'warning': result['warning']
-                })
-            
+        # Check if there was a warning about image upload
+        if 'warning' in result:
+            app.logger.warning(f"Post successful but with image warning: {result['warning']}")
             return jsonify({
                 'id': post.id,
                 'status': post.status,
-                'post_id': post.post_id
+                'post_id': post.post_id,
+                'warning': result['warning']
             })
-        else:
-            post.status = 'failed'
-            db.session.commit()
-            app.logger.error(f"Post failed: {result.get('error', 'Unknown error')}")
-            return jsonify({'error': result.get('error', 'Failed to post')}), 500
-    
-    app.logger.error(f"Unsupported platform: {post.platform}")
-    return jsonify({'error': f'Unsupported platform: {post.platform}'}), 400
+        
+        return jsonify({
+            'id': post.id,
+            'status': post.status,
+            'post_id': post.post_id
+        })
+    else:
+        # Update failure state in database
+        post.status = 'failed'
+        db.session.commit()
+        app.logger.error(f"Post failed: {result.get('error', 'Unknown error')}")
+        return jsonify({'error': result.get('error', 'Failed to post')}), 500
 
 # Set up logging
 def setup_logging(app):
@@ -244,6 +239,9 @@ setup_logging(app)
 # Load configuration using the environment we already have
 Config.init_app(app_env)
 app.config.from_object(Config)
+
+# Properly initialize the notifier after Config is set up
+notifier = init_notifier()
 
 # Set up upload folder from environment
 upload_dir = os.getenv('UPLOAD_FOLDER', 'instance/uploads')
@@ -602,14 +600,21 @@ def manage_posts():
         app.logger.info(f"Post scheduled for future: {post.eastern_scheduled_time}")
     else:
         app.logger.info(f"Post scheduled for past/now: {post.eastern_scheduled_time}")
-        if post.platform == 'x':
-            result = x_client.post(post.content)
-            if result['success']:
-                post.post_id = result['post_id']
-                post.status = 'posted'
-            else:
-                post.status = 'failed'
-                return jsonify({'error': result['error']}), 500
+        
+        # Check if post has an image
+        image_path = None
+        if post.image_filename:
+            image_path = os.path.join(UPLOAD_FOLDER, post.image_filename)
+        
+        # Use shared posting functionality
+        result = post_to_platform(post, x_client, image_path)
+        
+        if result['success']:
+            post.post_id = result['post_id']
+            post.status = 'posted'
+        else:
+            post.status = 'failed'
+            return jsonify({'error': result.get('error', 'Failed to post')}), 500
 
     db.session.add(post)
     db.session.commit()
