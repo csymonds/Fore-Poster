@@ -35,7 +35,7 @@ from logging.handlers import RotatingFileHandler
 from werkzeug.security import generate_password_hash, check_password_hash
 from werkzeug.utils import secure_filename
 import tweepy
-from env_handler import get_env_var  # Note: don't import load_environment to avoid reloading
+from env_handler import get_env_var, safe_get_int
 from functools import wraps
 from config import Config
 from datetime import datetime, timedelta
@@ -211,8 +211,8 @@ def setup_logging(app):
     # Set up file handler for all logs
     file_handler = RotatingFileHandler(
         os.path.join(log_dir, 'fore_poster.log'),
-        maxBytes=int(os.environ.get('LOG_MAX_BYTES', 1024 * 1024)),  # Default: 1MB
-        backupCount=int(os.environ.get('LOG_BACKUP_COUNT', 10))  # Default: 10 backups
+        maxBytes=safe_get_int('LOG_MAX_BYTES', 1024 * 1024, min_value=1024),  # Default: 1MB
+        backupCount=safe_get_int('LOG_BACKUP_COUNT', 10, min_value=1, max_value=100)  # Default: 10 backups
     )
     file_handler.setFormatter(logging.Formatter(
         '%(asctime)s %(levelname)s: %(message)s [in %(pathname)s:%(lineno)d]'
@@ -222,8 +222,8 @@ def setup_logging(app):
     # Set up error log handler
     error_handler = RotatingFileHandler(
         os.path.join(log_dir, 'error.log'),
-        maxBytes=int(os.environ.get('LOG_MAX_BYTES', 1024 * 1024)),
-        backupCount=int(os.environ.get('LOG_BACKUP_COUNT', 10))
+        maxBytes=safe_get_int('LOG_MAX_BYTES', 1024 * 1024, min_value=1024),
+        backupCount=safe_get_int('LOG_BACKUP_COUNT', 10, min_value=1, max_value=100)
     )
     error_handler.setFormatter(logging.Formatter(
         '%(asctime)s %(levelname)s: %(message)s [in %(pathname)s:%(lineno)d]'
@@ -256,11 +256,12 @@ allowed_extensions_str = os.getenv('ALLOWED_FILE_EXTENSIONS', 'png,jpg,jpeg,gif'
 app.config['ALLOWED_EXTENSIONS'] = set(ext.strip() for ext in allowed_extensions_str.split(','))
 
 # Set max content length from environment
-max_upload_size = int(os.getenv('MAX_UPLOAD_SIZE_MB', '16'))
+max_upload_size = safe_get_int('MAX_UPLOAD_SIZE_MB', 16, min_value=1, max_value=1024)
 app.config['MAX_CONTENT_LENGTH'] = max_upload_size * 1024 * 1024  # Convert to bytes
+app.logger.info(f"Maximum upload size set to {max_upload_size}MB ({app.config['MAX_CONTENT_LENGTH']} bytes)")
 
 # Cache duration for static files
-CACHE_MAX_AGE = int(os.getenv('CACHE_MAX_AGE', '86400'))  # Default: 1 day
+CACHE_MAX_AGE = safe_get_int('CACHE_MAX_AGE', 86400, min_value=0)  # Default: 1 day
 
 # Configure CORS based on environment
 is_production = app_env == 'production'

@@ -20,5 +20,17 @@ os.environ['FLASK_ENV'] = 'production'
 # Local application imports
 from fore_poster import app
 
+# Set instance path explicitly for production
+# This is critical for correct operation when running through WSGI
+app.instance_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "instance")
+os.makedirs(app.instance_path, exist_ok=True)
+app.logger.info(f"Production instance path set to: {app.instance_path}")
+
+# Set up upload folder from environment
+upload_dir = os.getenv('UPLOAD_FOLDER', 'instance/uploads')
+upload_folder = os.path.join(app.instance_path, upload_dir.replace('instance/', ''))
+os.makedirs(upload_folder, exist_ok=True)
+app.logger.info(f"Production upload folder set to: {upload_folder}")
+
 if __name__ == "__main__":
     app.run()
