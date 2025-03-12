@@ -55,6 +55,7 @@ deploy.sh
 instance/
 dev_*
 TODO.md
+*.service
 
 # Testing
 .coverage

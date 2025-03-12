@@ -63,55 +63,14 @@ except ImportError:
     has_sse = False
     logger.info("SSE support not available")
 
+# Import shared modules - Only import functions, not the notifier yet
+from core.notification import init_notifier, get_notifier
+from core.posting import post_to_platform
+
 # Get scheduler configuration from environment variables
 from env_handler import get_env_var
 SCHEDULER_INTERVAL_MINUTES = int(get_env_var('SCHEDULER_INTERVAL_MINUTES', '1'))
 SCHEDULER_ADVANCE_MINUTES = int(get_env_var('SCHEDULER_ADVANCE_MINUTES', '1'))
-
-class NotificationHandler:
-    """
-    Handles sending notifications about post status.
-    
-    In production, uses AWS SES to send email notifications.
-    In development, just logs the notifications.
-    """
-    def __init__(self):
-        """Initialize notification handler based on environment."""
-        self.production = Config.PRODUCTION
-        if self.production:
-            import boto3
-            self.ses = boto3.client('ses', region_name=Config.AWS_REGION)
-            self.sender = Config.SES_SENDER
-            self.recipient = Config.SES_RECIPIENT
-            logger.info(f"Notification handler initialized in production mode")
-        else:
-            logger.info(f"Notification handler initialized in development mode (notifications will be logged only)")
-
-    def send_notification(self, subject: str, message: str):
-        """
-        Send a notification about post status.
-        
-        Args:
-            subject: Subject line for the notification
-            message: Body text for the notification
-        """
-        if not self.production:
-            logger.info(f"Development mode - would send email: {subject}")
-            logger.info(f"Message: {message}")
-            return
-
-        try:
-            self.ses.send_email(
-                Source=self.sender,
-                Destination={'ToAddresses': [self.recipient]},
-                Message={
-                    'Subject': {'Data': subject},
-                    'Body': {'Text': {'Data': message}}
-                }
-            )
-            logger.info(f"Email sent: {subject}")
-        except Exception as e:
-            logger.error(f"Failed to send email: {str(e)}")
 
 class PostScheduler:
     """
@@ -125,8 +84,8 @@ class PostScheduler:
         """Initialize the scheduler and supporting components."""
         self.scheduler = BackgroundScheduler()
         self.x_client = XClient()
-        self.notifier = NotificationHandler()
         self.running = False
+        self.notifier = None  # Will be set by main()
         
     def start(self):
         """
@@ -218,13 +177,11 @@ class PostScheduler:
                 instance_path = current_app.instance_path
                 image_path = os.path.join(instance_path, 'uploads', post.image_filename)
                 logger.info(f"Post has image: {image_path}")
-                # Check if the image file exists
-                if not os.path.exists(image_path):
-                    logger.warning(f"Image file not found at {image_path}")
-                    image_path = None
             
-            # Post with or without image
-            result = self.x_client.post(post.content, image_path)
+            # Use shared posting functionality with the properly initialized notifier
+            # Get a fresh reference to the notifier in case we need it later
+            notifier = get_notifier()
+            result = post_to_platform(post, self.x_client, image_path)
             
             if result['success']:
                 # Update post status
@@ -250,24 +207,6 @@ class PostScheduler:
                         logger.info(f"Queued real-time update for post {post.id}")
                     except Exception as e:
                         logger.error(f"Failed to send real-time update: {str(e)}")
-                
-                # Prepare notification message
-                notification_message = f"""
-Post ID: {post.id}
-Content: {post.content}
-Platform ID: {post.post_id}
-Time: {datetime.utcnow().isoformat()}
-"""
-                # Add image info if applicable
-                if image_path:
-                    notification_message += f"Image: {post.image_filename}\n"
-                if 'warning' in result:
-                    notification_message += f"Warning: {result['warning']}\n"
-                
-                self.notifier.send_notification(
-                    subject="Post Successfully Published",
-                    message=notification_message
-                )
             else:
                 # Update post status
                 post.status = 'failed'
@@ -292,19 +231,12 @@ Time: {datetime.utcnow().isoformat()}
                     except Exception as e:
                         logger.error(f"Failed to send real-time update: {str(e)}")
                 
-                self.notifier.send_notification(
-                    subject="Post Failed",
-                    message=f"""
-Post ID: {post.id}
-Content: {post.content}
-Error: {result.get('error', 'Unknown error')}
-Time: {datetime.utcnow().isoformat()}
-"""
-                )
-                
         except Exception as e:
             logger.error(f"Error processing post {post.id}: {str(e)}")
-            self.notifier.send_notification(
+            
+            # Send notification through shared notifier
+            notifier = get_notifier()
+            notifier.send_notification(
                 subject="Scheduler Error",
                 message=f"Error processing post {post.id}: {str(e)}"
             )
@@ -318,8 +250,15 @@ def main():
     # Initialize configuration
     Config.init_app(app_env)
     
+    # Initialize the notifier with the correct configuration
+    notifier = init_notifier()
+    
     # Start scheduler
     scheduler = PostScheduler()
+    
+    # Make notifier available to the scheduler
+    scheduler.notifier = notifier
+    
     scheduler.start()
     
     # Keep main thread alive while scheduler runs in background
