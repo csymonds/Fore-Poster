@@ -35,7 +35,7 @@ from logging.handlers import RotatingFileHandler
 from werkzeug.security import generate_password_hash, check_password_hash
 from werkzeug.utils import secure_filename
 import tweepy
-from env_handler import load_environment, get_env_var
+from env_handler import get_env_var  # Note: don't import load_environment to avoid reloading
 from functools import wraps
 from config import Config
 from datetime import datetime, timedelta
@@ -44,6 +44,19 @@ import hashlib
 import uuid
 import os.path
 
+# Initialize logger first, but only once
+logger = logging.getLogger(__name__)
+
+# Only log the startup message if the logger doesn't already have handlers
+# (to avoid duplicate messages during Flask's debug mode reload)
+if not logger.handlers:
+    logger.info("Fore-Poster startup initiated")
+
+# Get environment - use what's already set by the launcher
+app_env = os.environ.get('APP_ENV', 'development')
+logger.info(f"Application environment: {app_env}")
+
+# Get CORS settings from environment
 CORS_ORIGINS = os.getenv('CORS_ORIGINS', 'http://localhost:5173,http://localhost:4173,http://localhost:3000').split(',')
 
 # Cross-platform password hashing utilities
@@ -190,16 +203,16 @@ def post_now_handler(post):
 
 # Set up logging
 def setup_logging(app):
-    # Create logs directory if it doesn't exist
-    log_dir = '/var/log/fore-poster'
+    # Get log directory from environment or use default
+    log_dir = os.environ.get('LOG_DIR', '/var/log/fore-poster')
     if not os.path.exists(log_dir):
-        os.makedirs(log_dir)
+        os.makedirs(log_dir, exist_ok=True)
 
     # Set up file handler for all logs
     file_handler = RotatingFileHandler(
         os.path.join(log_dir, 'fore_poster.log'),
-        maxBytes=1024 * 1024,  # 1MB
-        backupCount=10
+        maxBytes=int(os.environ.get('LOG_MAX_BYTES', 1024 * 1024)),  # Default: 1MB
+        backupCount=int(os.environ.get('LOG_BACKUP_COUNT', 10))  # Default: 10 backups
     )
     file_handler.setFormatter(logging.Formatter(
         '%(asctime)s %(levelname)s: %(message)s [in %(pathname)s:%(lineno)d]'
@@ -209,8 +222,8 @@ def setup_logging(app):
     # Set up error log handler
     error_handler = RotatingFileHandler(
         os.path.join(log_dir, 'error.log'),
-        maxBytes=1024 * 1024,
-        backupCount=10
+        maxBytes=int(os.environ.get('LOG_MAX_BYTES', 1024 * 1024)),
+        backupCount=int(os.environ.get('LOG_BACKUP_COUNT', 10))
     )
     error_handler.setFormatter(logging.Formatter(
         '%(asctime)s %(levelname)s: %(message)s [in %(pathname)s:%(lineno)d]'
@@ -228,13 +241,11 @@ def setup_logging(app):
 app = Flask(__name__)
 setup_logging(app)
 
-# Load configuration
-load_environment()
-app_env = os.getenv('APP_ENV', 'development')
+# Load configuration using the environment we already have
 Config.init_app(app_env)
 app.config.from_object(Config)
 
-# Set up upload folder
+# Set up upload folder from environment
 upload_dir = os.getenv('UPLOAD_FOLDER', 'instance/uploads')
 UPLOAD_FOLDER = os.path.join(app.instance_path, upload_dir.replace('instance/', ''))
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
@@ -251,11 +262,23 @@ app.config['MAX_CONTENT_LENGTH'] = max_upload_size * 1024 * 1024  # Convert to b
 # Cache duration for static files
 CACHE_MAX_AGE = int(os.getenv('CACHE_MAX_AGE', '86400'))  # Default: 1 day
 
-# Configure CORS using the environment variable
-CORS(app, resources={r"/*": {"origins": CORS_ORIGINS}}, 
-     supports_credentials=True, 
-     allow_headers=["Content-Type", "Authorization"],
-     methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"])
+# Configure CORS based on environment
+is_production = app_env == 'production'
+if is_production:
+    # Production CORS settings - more restrictive
+    CORS(app, resources={r"/*": {"origins": CORS_ORIGINS}}, 
+         supports_credentials=True, 
+         allow_headers=["Content-Type", "Authorization"],
+         methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"])
+    app.logger.info(f"CORS configured for production with origins: {CORS_ORIGINS}")
+else:
+    # Development CORS settings - more permissive
+    CORS(app, resources={r"/*": {"origins": "*"}}, 
+         supports_credentials=True, 
+         allow_headers=["Content-Type", "Authorization"],
+         methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+         expose_headers=["Content-Disposition"])
+    app.logger.info("CORS configured for development (permissive settings)")
 
 db = SQLAlchemy(app)
 
@@ -436,35 +459,65 @@ def handle_error(error):
     app.logger.error(f"Unhandled error: {str(error)}", exc_info=True)
     return jsonify(error="Internal server error"), 500
 
-class AuthHandler:
-    def __init__(self):
-        self.secret = get_env_var('JWT_SECRET')
-        if not self.secret:
-            raise EnvironmentError("JWT_SECRET environment variable is required")
+# Create Flask JWT authentication middleware
+class Auth:
+    def __init__(self, app=None, secret=None):
+        self.app = app
+        self.secret = secret or os.getenv('JWT_SECRET', 'dev-secret-key')
+        
+        # Warn if using default secret in production
+        if self.secret == 'dev-secret-key' and os.getenv('APP_ENV') == 'production':
+            logger.error("WARNING: Using default JWT secret in production environment!")
+        
+    def generate_token(self, user_id, expires_in=86400):
+        """Generate a JWT token for a user.
+        
+        Args:
+            user_id: The user ID to encode in the token
+            expires_in: Token validity in seconds (default: 24 hours)
             
-    def generate_token(self, user_id: int) -> str:
-        return jwt.encode(
-            {'user_id': user_id, 'exp': datetime.now(pytz.UTC) + timedelta(days=1)},
-            self.secret,
-            algorithm='HS256'
-        )
-    
+        Returns:
+            String: The JWT token
+        """
+        payload = {
+            'user_id': user_id,
+            'exp': datetime.utcnow() + timedelta(seconds=expires_in)
+        }
+        return jwt.encode(payload, self.secret, algorithm='HS256')
+        
     def require_auth(self, f):
+        """Decorator to require authentication on a route.
+        
+        This decorator checks for a valid JWT token in the Authorization header.
+        It sets request.user_id to the authenticated user's ID if successful.
+        
+        Args:
+            f: The route function to wrap
+            
+        Returns:
+            Function: The wrapped function
+        """
         @wraps(f)
         def decorated(*args, **kwargs):
+            # Skip authentication on OPTIONS requests for CORS
+            if request.method == 'OPTIONS':
+                return f(*args, **kwargs)
+                
             token = request.headers.get('Authorization')
             if not token or not token.startswith('Bearer '):
                 return jsonify({'error': 'Missing token'}), 401
+                
             try:
                 token = token.split('Bearer ')[1]
                 payload = jwt.decode(token, self.secret, algorithms=['HS256'])
                 request.user_id = payload['user_id']
             except (jwt.ExpiredSignatureError, jwt.InvalidTokenError):
                 return jsonify({'error': 'Invalid token'}), 401
+                
             return f(*args, **kwargs)
         return decorated
 
-auth = AuthHandler()
+auth = Auth()
 x_client = XClient()
 
 @app.route('/api/login', methods=['POST'])
@@ -681,8 +734,15 @@ def serve_uploaded_file(filename):
         The file response or an error JSON
     """
     if request.method == 'OPTIONS':
-        # CORS preflight handling is done by Flask-CORS extension
-        return app.make_default_options_response()
+        # CORS preflight handling
+        response = app.make_default_options_response()
+        # Add CORS headers based on environment
+        if not is_production:
+            response.headers.add('Access-Control-Allow-Origin', '*')
+            response.headers.add('Access-Control-Allow-Headers', 'Content-Type,Authorization')
+            response.headers.add('Access-Control-Allow-Methods', 'GET,OPTIONS')
+            response.headers.add('Access-Control-Max-Age', '3600')
+        return response
         
     try:
         # Prevent directory traversal attacks
@@ -704,6 +764,16 @@ def serve_uploaded_file(filename):
         response = send_from_directory(UPLOAD_FOLDER, filename, conditional=True)
         response.headers.add('Cache-Control', f'public, max-age={CACHE_MAX_AGE}')
         
+        # Add CORS headers based on environment
+        if not is_production:
+            response.headers.add('Access-Control-Allow-Origin', '*')
+            response.headers.add('Access-Control-Allow-Methods', 'GET, OPTIONS')
+            response.headers.add('Access-Control-Allow-Headers', 'Content-Type, Authorization')
+            response.headers.add('Access-Control-Expose-Headers', 'Content-Disposition, Content-Length, Content-Type')
+            response.headers.add('Vary', 'Origin')
+            
+        app.logger.debug(f"Serving file: {filename}")
+        
         return response
     except Exception as e:
         app.logger.error(f"Error serving file {filename}: {str(e)}", exc_info=True)
@@ -714,9 +784,16 @@ def serve_uploaded_file(filename):
 @auth.require_auth
 def upload_file():
     """Upload a file and return its URL."""
-    # Handle preflight CORS requests
+    # Handle preflight CORS requests - this is now handled by the auth.require_auth decorator
     if request.method == 'OPTIONS':
-        return app.make_default_options_response()
+        response = app.make_default_options_response()
+        # Add CORS headers based on environment
+        if not is_production:
+            response.headers.add('Access-Control-Allow-Origin', '*')
+            response.headers.add('Access-Control-Allow-Headers', 'Content-Type, Authorization')
+            response.headers.add('Access-Control-Allow-Methods', 'POST, OPTIONS')
+            response.headers.add('Access-Control-Max-Age', '3600')
+        return response
         
     try:
         if 'file' not in request.files:
@@ -747,12 +824,19 @@ def upload_file():
             file_url = f"{base_url}/files/{unique_filename}"
             
             app.logger.info(f"File saved: {unique_filename}")
+            app.logger.info(f"File URL: {file_url}")
             
-            return jsonify({
+            response = jsonify({
                 'filename': unique_filename,
                 'url': file_url,
                 'original_filename': original_filename
-            }), 201
+            })
+            
+            # Add CORS headers based on environment
+            if not is_production:
+                response.headers.add('Access-Control-Allow-Origin', '*')
+                
+            return response, 201
         
         return jsonify({'error': 'File type not allowed'}), 400
     
@@ -761,8 +845,28 @@ def upload_file():
         return jsonify({'error': str(e)}), 500
 
 if __name__ == '__main__':
+    # Set instance path explicitly
+    instance_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "instance")
+    app.instance_path = instance_path
+    
+    if not os.path.exists(instance_path):
+        os.makedirs(instance_path, exist_ok=True)
+        app.logger.info(f"Created instance directory at: {instance_path}")
+    
+    # Make sure upload folder exists
+    os.makedirs(UPLOAD_FOLDER, exist_ok=True)
+    app.logger.info(f"Upload folder at: {UPLOAD_FOLDER}")
+    
+    # Log database path
+    if app_env != 'production':
+        # For SQLite
+        db_path = os.path.join(app.instance_path, 'fore_poster.db')
+        app.logger.info(f"SQLite database will be at: {db_path}")
+    
     with app.app_context():
+        app.logger.info("Creating database tables...")
         db.create_all()
+        app.logger.info("Database tables created successfully")
         
         # Create default user if none exists, using environment variables if available
         if not User.query.first():
@@ -785,4 +889,6 @@ if __name__ == '__main__':
     else:
         app.logger.info(f"Running in {app_env.upper()} mode - debug enabled")
     
-    app.run(debug=debug_mode, port=8000)
+    port = int(os.getenv('PORT', 8000))
+    app.logger.info(f"Starting Flask server on port {port}")
+    app.run(debug=debug_mode, port=port)

@@ -6,11 +6,11 @@ Run this script after setting up your .env file.
 This will create the database and add an admin user.
 
 Usage:
-    python reset_db.py [--force] [ENV_FILE_PATH]
+    python reset_db.py [--force] [--env-file ENV_FILE_PATH]
     
 Arguments:
-    --force           Skip confirmation prompt (use with caution)
-    ENV_FILE_PATH     Optional path to a custom .env file
+    --force                   Skip confirmation prompt (use with caution)
+    --env-file PATH           Path to a custom .env file
 """
 import os
 import sys
@@ -31,14 +31,21 @@ def parse_arguments():
     parser = argparse.ArgumentParser(description="Reset and initialize the Fore-Poster database")
     parser.add_argument('--force', action='store_true', 
                         help='Force reset without confirmation (use with caution)')
-    parser.add_argument('env_file', nargs='?', default=None,
+    parser.add_argument('--env-file', dest='env_file', type=str,
                         help='Path to a custom .env file to use')
+    # For backward compatibility, keep the positional argument
+    parser.add_argument('env_file_pos', nargs='?', default=None, 
+                        help='(Deprecated) Path to a custom .env file to use')
     return parser.parse_args()
 
 # Add current directory to path if needed
 current_dir = os.path.dirname(os.path.abspath(__file__))
 if current_dir not in sys.path:
     sys.path.append(current_dir)
+
+# Set development environment explicitly
+os.environ['APP_ENV'] = 'development'
+logger.info("Setting APP_ENV to development for database reset")
 
 # Load environment variables from .env file
 try:
@@ -47,48 +54,39 @@ try:
     BASE_DIR = Path(__file__).parent.absolute()
     args = parse_arguments()
     
+    # Prioritize named argument, fall back to positional if needed
+    env_file_path = args.env_file or args.env_file_pos
+    
     # Load environment from custom file if provided
-    if args.env_file:
-        if os.path.exists(args.env_file):
-            load_environment(args.env_file)
-            logger.info(f"Loaded environment from custom file: {args.env_file}")
+    if env_file_path:
+        if os.path.exists(env_file_path):
+            logger.info(f"Loading environment from custom file: {env_file_path}")
+            load_environment(env_file_path)
         else:
-            logger.warning(f"Custom environment file not found: {args.env_file}")
-            load_environment()
+            logger.warning(f"Custom environment file not found: {env_file_path}")
+            # Look for .env.dev in parent directory (project root)
+            env_dev_path = os.path.join(BASE_DIR.parent, ".env.dev")
+            if os.path.exists(env_dev_path):
+                logger.info(f"Loading development environment from: {env_dev_path}")
+                load_environment(env_dev_path)
+            else:
+                # Try local .env
+                logger.warning("Falling back to default .env file")
+                load_environment()
     else:
-        load_environment()
+        # Look for .env.dev in parent directory (project root)
+        env_dev_path = os.path.join(BASE_DIR.parent, ".env.dev")
+        if os.path.exists(env_dev_path):
+            logger.info(f"Loading development environment from: {env_dev_path}")
+            load_environment(env_dev_path)
+        else:
+            logger.info("No custom environment file specified, using default .env")
+            load_environment()
         
-    logger.info("Environment loaded")
+    logger.info(f"Environment loaded. APP_ENV={os.environ.get('APP_ENV', 'Not set')}")
 except ImportError as e:
     logger.error(f"Failed to import env_handler: {str(e)}")
     sys.exit(1)
-
-def validate_password(password):
-    """
-    Validate password meets minimum security requirements.
-    
-    Args:
-        password: The password to validate
-        
-    Returns:
-        tuple: (is_valid, message) where is_valid is a boolean and message explains any issues
-    """
-    if len(password) < 8:
-        return False, "Password must be at least 8 characters long"
-    
-    if not any(c.islower() for c in password):
-        return False, "Password must contain at least one lowercase letter"
-        
-    if not any(c.isupper() for c in password):
-        return False, "Password must contain at least one uppercase letter"
-        
-    if not any(c.isdigit() for c in password):
-        return False, "Password must contain at least one digit"
-        
-    if not re.search(r'[!@#$%^&*(),.?":{}|<>]', password):
-        return False, "Password must contain at least one special character"
-        
-    return True, "Password meets security requirements"
 
 def backup_database(db_path):
     """
@@ -150,14 +148,75 @@ def set_file_ownership(file_path, user=None):
         logger.warning(f"Could not set ownership on file: {str(e)}")
         logger.warning("You may need to manually set proper ownership")
 
+def ensure_directory_exists(directory_path):
+    """
+    Ensure a directory exists, creating it if necessary.
+    
+    Args:
+        directory_path: Path to the directory to ensure exists
+        
+    Returns:
+        bool: True if directory exists or was created successfully
+    """
+    # If directory_path is empty or just whitespace, return False
+    if not directory_path or not directory_path.strip():
+        logger.error("Cannot create directory: empty path provided")
+        return False
+        
+    logger.info(f"Ensuring directory exists: {directory_path}")
+    
+    if os.path.exists(directory_path):
+        if os.path.isdir(directory_path):
+            logger.info(f"Directory already exists: {directory_path}")
+            return True
+        else:
+            logger.error(f"Path exists but is not a directory: {directory_path}")
+            return False
+    
+    try:
+        os.makedirs(directory_path, exist_ok=True)
+        logger.info(f"Successfully created directory: {directory_path}")
+        return True
+    except Exception as e:
+        logger.error(f"Failed to create directory {directory_path}: {str(e)}")
+        return False
+
+def is_valid_path(path):
+    """
+    Check if a path is valid and not a comment or instruction.
+    
+    Args:
+        path: The path to validate
+        
+    Returns:
+        bool: True if the path seems valid
+    """
+    if not path:
+        return False
+        
+    # Check for common comment indicators
+    if path.strip().startswith(('#', '//', '/*', '*', ';')):
+        return False
+        
+    # Check if it has basic path structure (not starting with invalid characters)
+    if re.match(r'^[a-zA-Z0-9_\-./~]+$', path.strip()):
+        return True
+        
+    # If it contains spaces or other characters, it might be a comment
+    if ' ' in path and not os.path.exists(path):
+        return False
+        
+    return True
+
 def main():
     # Use global args parsed at startup
     global args
     
-    # Determine environment
-    app_env = get_env_var('APP_ENV', 'development')
+    # Get environment settings
+    app_env = os.environ.get('APP_ENV', 'development')
     is_production = app_env == 'production'
     logger.info(f"Application environment: {app_env}")
+    logger.info(f"Is production mode: {is_production}")
     
     # Confirm reset if not using --force flag
     if not args.force:
@@ -187,20 +246,12 @@ def main():
     admin_username = get_env_var('ADMIN_USERNAME', 'admin')
     admin_password = get_env_var('ADMIN_PASSWORD', 'password')
     
+    # Log admin username but NEVER log the password
+    logger.info(f"Using admin username: {admin_username}")
+    
     if not admin_username or not admin_password:
         logger.error("ADMIN_USERNAME and/or ADMIN_PASSWORD not defined in .env file")
         sys.exit(1)
-    
-    # Validate admin password
-    is_valid, message = validate_password(admin_password)
-    if not is_valid:
-        logger.warning(f"Admin password validation failed: {message}")
-        if not args.force:
-            logger.error("Password does not meet security requirements. Please update it in your .env file.")
-            logger.error("Use --force to override this check if necessary.")
-            sys.exit(1)
-        else:
-            logger.warning("Proceeding anyway due to --force flag.")
     
     # Determine database type and path
     if is_production:
@@ -222,16 +273,44 @@ def main():
         db_path = None
     else:
         # For development/testing, use SQLite
-        db_path = get_env_var('DB_PATH', None)
-        if not db_path:
-            db_path = os.path.join(app.instance_path, 'fore_poster.db')
+        db_path_from_env = get_env_var('DB_PATH', None)
         
-        # Ensure the instance directory exists
+        # Log app instance path to help debugging
+        logger.info(f"Flask app.instance_path: {app.instance_path}")
+        
+        # Check if DB_PATH is valid and not a comment
+        if db_path_from_env and is_valid_path(db_path_from_env):
+            db_path = db_path_from_env
+            logger.info(f"Using environment-specified SQLite database path: {db_path}")
+        else:
+            # Make sure instance_path is absolute
+            if db_path_from_env:
+                logger.warning(f"Ignoring invalid DB_PATH value: '{db_path_from_env}' - using default")
+            
+            if not os.path.isabs(app.instance_path):
+                abs_instance_path = os.path.abspath(app.instance_path)
+                logger.info(f"Converting relative instance path to absolute: {abs_instance_path}")
+            else:
+                abs_instance_path = app.instance_path
+                
+            db_path = os.path.join(abs_instance_path, 'fore_poster.db')
+            logger.info(f"Using default SQLite database path: {db_path}")
+        
+        # Get the instance directory and make sure it exists
         instance_dir = os.path.dirname(db_path)
-        if not os.path.exists(instance_dir):
-            os.makedirs(instance_dir)
-            logger.info(f"Created instance directory: {instance_dir}")
+        logger.info(f"Database directory path: {instance_dir}")
         
+        # Create the instance directory if it doesn't exist
+        if not ensure_directory_exists(instance_dir):
+            logger.error("Failed to create instance directory, cannot proceed")
+            sys.exit(1)
+            
+        # Double check the directory exists
+        if not os.path.exists(instance_dir):
+            logger.error(f"Instance directory does not exist after creation attempt: {instance_dir}")
+            sys.exit(1)
+            
+        logger.info(f"Instance directory exists and is ready: {instance_dir}")
         logger.info(f"Using SQLite database at: {db_path}")
         
         # Backup existing database if it exists
@@ -245,8 +324,21 @@ def main():
             logger.info("Creating all tables...")
             db.create_all()
             
+            # Verify the database file was created
+            if not is_production:
+                if os.path.exists(db_path):
+                    logger.info(f"Verified database file was created: {db_path}")
+                    file_size = os.path.getsize(db_path)
+                    logger.info(f"Database file size: {file_size} bytes")
+                else:
+                    logger.warning(f"Database file was not created at expected path: {db_path}")
+                    # Try to determine why
+                    logger.info(f"Current working directory: {os.getcwd()}")
+                    logger.info(f"Is instance directory writable? {os.access(instance_dir, os.W_OK)}")
+            
             # Create uploads directory if it doesn't exist
-            uploads_dir = os.path.join(app.instance_path, 'uploads')
+            upload_folder = get_env_var('UPLOAD_FOLDER', 'instance/uploads')
+            uploads_dir = os.path.join(app.instance_path, upload_folder.replace('instance/', ''))
             if not os.path.exists(uploads_dir):
                 os.makedirs(uploads_dir, exist_ok=True)
                 logger.info(f"Created uploads directory: {uploads_dir}")
@@ -311,4 +403,12 @@ def main():
         sys.exit(1)
 
 if __name__ == "__main__":
-    main() 
+    try:
+        main()
+        print("\nOperation completed successfully!")
+    except KeyboardInterrupt:
+        print("\nOperation cancelled by user.")
+        sys.exit(0)
+    except Exception as e:
+        logger.error(f"An unexpected error occurred: {str(e)}")
+        sys.exit(1) 

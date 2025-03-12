@@ -23,9 +23,32 @@ logger = logging.getLogger(__name__)
 BASE_DIR = Path(__file__).parent.absolute()
 sys.path.insert(0, str(BASE_DIR))
 
-# Load environment before importing app
-from env_handler import load_environment, get_env_var
-load_environment()
+# Set environment explicitly before anything else, but only once
+# Check if we're being reloaded by Flask's debugger
+if 'WERKZEUG_RUN_MAIN' not in os.environ:
+    os.environ['APP_ENV'] = 'development'
+    logger.info(f"Setting APP_ENV to development for local run")
+
+    # Load environment before importing app, but only on first run
+    from env_handler import load_environment
+
+    # Look for .env.dev in parent directory (project root)
+    env_dev_path = os.path.join(BASE_DIR.parent, ".env.dev")
+    if os.path.exists(env_dev_path):
+        logger.info(f"Loading development environment from: {env_dev_path}")
+        load_environment(env_dev_path)
+    else:
+        # Fallback to finding .env.dev in current directory
+        env_dev_path = os.path.join(BASE_DIR, ".env.dev")
+        if os.path.exists(env_dev_path):
+            logger.info(f"Loading development environment from: {env_dev_path}")
+            load_environment(env_dev_path)
+        else:
+            logger.warning(f"Development environment file not found at: {env_dev_path}")
+            logger.warning("Falling back to .env file. Application may not run correctly.")
+            load_environment()
+else:
+    logger.info("Flask reloader detected - skipping environment reload")
 
 # Now import the app
 from fore_poster import app
@@ -35,18 +58,21 @@ if __name__ == "__main__":
     app.instance_path = os.path.join(BASE_DIR, "instance")
     os.makedirs(app.instance_path, exist_ok=True)
     
+    # Only log instance path on the first run
+    if 'WERKZEUG_RUN_MAIN' not in os.environ:
+        logger.info(f"Set instance path to: {app.instance_path}")
+    
     port = int(os.environ.get("PORT", 8000))
-    app_env = get_env_var('APP_ENV', 'development')
     
-    logger.info(f"Starting Fore-Poster backend on port {port}")
-    logger.info(f"Environment: {app_env}")
-    logger.info(f"Database path: {os.path.join(app.instance_path, 'fore_poster.db')}")
+    # Only log startup info on the first run
+    if 'WERKZEUG_RUN_MAIN' not in os.environ:
+        logger.info(f"Starting Fore-Poster backend on port {port}")
+        logger.info(f"Environment: {os.environ.get('APP_ENV')}")
+        logger.info(f"Database path: {os.path.join(app.instance_path, 'fore_poster.db')}")
     
-    # Ensure debug mode is disabled in production
-    debug_mode = app_env != 'production'
-    if app_env == 'production' and debug_mode:
-        logger.error("ERROR: Debug mode should not be enabled in production!")
-        sys.exit(1)
+    # Debug mode only in development environments
+    debug_mode = os.environ.get('APP_ENV') != 'production'
+    if 'WERKZEUG_RUN_MAIN' not in os.environ:
+        logger.info(f"Debug mode: {debug_mode}")
     
-    logger.info(f"Debug mode: {debug_mode}")
     app.run(debug=debug_mode, port=port) 

@@ -18,6 +18,7 @@ def load_environment(custom_env_file=None):
         FileNotFoundError: If no .env file could be found in any location
     """
     # If custom environment file is provided, try to load it first
+    logger.info(f"Custom file specified: {custom_env_file}")
     if custom_env_file and os.path.exists(custom_env_file):
         load_dotenv(custom_env_file)
         logger.info(f"Loaded environment from custom file: {custom_env_file}")
