@@ -7,7 +7,10 @@ It uses APScheduler to manage the scheduled tasks and handles AWS SES for email
 notifications in production environments.
 
 Usage:
-    python fore_scheduler.py  # Run as a standalone process
+    python fore_scheduler.py [--env-file ENV_FILE_PATH]
+    
+Arguments:
+    --env-file PATH           Path to a custom .env file
     
 Environment Variables:
     APP_ENV: Application environment (development, testing, production)
@@ -23,6 +26,7 @@ import atexit
 import time
 import os
 import logging
+import argparse
 
 # Set up logging
 logging.basicConfig(
@@ -35,12 +39,32 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+# Parse command line arguments
+def parse_args():
+    parser = argparse.ArgumentParser(description='Fore-Poster Scheduler')
+    parser.add_argument('--env-file', type=str, help='Path to environment file')
+    return parser.parse_args()
+
 # Load local app components
+from env_handler import load_environment
+args = parse_args()
+if args.env_file:
+    logger.info(f"Loading environment from: {args.env_file}")
+    load_environment(args.env_file)
+
 from fore_poster import app, db, Post, XClient
-from env_handler import get_env_var
 from config import Config
+# Import SSE Manager for real-time updates
+try:
+    from sse_manager import SSEManager
+    has_sse = True
+    logger.info("SSE support enabled for real-time updates")
+except ImportError:
+    has_sse = False
+    logger.info("SSE support not available")
 
 # Get scheduler configuration from environment variables
+from env_handler import get_env_var
 SCHEDULER_INTERVAL_MINUTES = int(get_env_var('SCHEDULER_INTERVAL_MINUTES', '1'))
 SCHEDULER_ADVANCE_MINUTES = int(get_env_var('SCHEDULER_ADVANCE_MINUTES', '1'))
 
@@ -203,9 +227,29 @@ class PostScheduler:
             result = self.x_client.post(post.content, image_path)
             
             if result['success']:
+                # Update post status
                 post.status = 'posted'
                 post.post_id = result['post_id']
                 db.session.commit()
+                
+                # Send real-time update if SSE is available
+                if has_sse:
+                    try:
+                        # Convert the post to a dictionary for sending
+                        post_dict = {
+                            'id': post.id,
+                            'content': post.content,
+                            'scheduled_time': post.scheduled_time.isoformat() if isinstance(post.scheduled_time, datetime) else post.scheduled_time,
+                            'status': post.status,
+                            'platform': post.platform,
+                            'post_id': post.post_id,
+                            'image_url': post.image_url,
+                            'image_filename': post.image_filename
+                        }
+                        SSEManager.event_queue.put(post_dict)
+                        logger.info(f"Queued real-time update for post {post.id}")
+                    except Exception as e:
+                        logger.error(f"Failed to send real-time update: {str(e)}")
                 
                 # Prepare notification message
                 notification_message = f"""
@@ -225,8 +269,28 @@ Time: {datetime.utcnow().isoformat()}
                     message=notification_message
                 )
             else:
+                # Update post status
                 post.status = 'failed'
                 db.session.commit()
+                
+                # Send real-time update if SSE is available
+                if has_sse:
+                    try:
+                        # Convert the post to a dictionary for sending
+                        post_dict = {
+                            'id': post.id,
+                            'content': post.content,
+                            'scheduled_time': post.scheduled_time.isoformat() if isinstance(post.scheduled_time, datetime) else post.scheduled_time,
+                            'status': post.status,
+                            'platform': post.platform,
+                            'post_id': post.post_id,
+                            'image_url': post.image_url,
+                            'image_filename': post.image_filename
+                        }
+                        SSEManager.event_queue.put(post_dict)
+                        logger.info(f"Queued real-time update for post {post.id}")
+                    except Exception as e:
+                        logger.error(f"Failed to send real-time update: {str(e)}")
                 
                 self.notifier.send_notification(
                     subject="Post Failed",

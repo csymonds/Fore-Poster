@@ -2,10 +2,18 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { PostsApi, CreatePostPayload, UpdatePostPayload } from '@/services/api';
 
-export const usePosts = () => {
+// Default interval in milliseconds (5 seconds)
+const DEFAULT_REFETCH_INTERVAL = 5000;
+
+export const usePosts = (options = {}) => {
   return useQuery({
     queryKey: ['posts'],
-    queryFn: () => PostsApi.getPosts()
+    queryFn: () => PostsApi.getPosts(),
+    // Automatically refetch data every few seconds
+    refetchInterval: DEFAULT_REFETCH_INTERVAL,
+    // Also refetch when the window regains focus
+    refetchOnWindowFocus: true,
+    ...options
   });
 };
 

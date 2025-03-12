@@ -238,7 +238,7 @@ def setup_logging(app):
     # Log startup message
     app.logger.info('Fore-Poster startup')
 
-app = Flask(__name__)
+app = Flask(__name__, instance_relative_config=True)
 setup_logging(app)
 
 # Load configuration using the environment we already have
@@ -844,6 +844,14 @@ def upload_file():
     except Exception as e:
         app.logger.error(f"Error uploading file: {str(e)}", exc_info=True)
         return jsonify({'error': str(e)}), 500
+
+# Initialize SSE support
+try:
+    from sse_manager import SSEManager
+    SSEManager.setup_routes(app)
+    logger.info("Server-Sent Events (SSE) initialized for real-time updates")
+except ImportError:
+    logger.warning("Could not initialize Server-Sent Events (SSE) support")
 
 if __name__ == '__main__':
     # Set instance path explicitly
