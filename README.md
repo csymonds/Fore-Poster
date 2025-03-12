@@ -27,62 +27,65 @@ Fore-Poster includes a robust notification system that:
 
 The notification system is properly initialized after the application configuration, ensuring it correctly reflects the current environment settings.
 
-## Quick Start
+## Development Setup
 
-### 1. Run the Setup Script
+### Environment Configuration
+
+1. Set up separate environment files:
+   - Backend: Use the `.env.example` file in the `backend` directory to create a '.env' file there
+   - Frontend: Create a `.env` file in the `frontend` directory with just:
+     ```
+     VITE_API_BASE_URL=http://localhost:8000/api
+     ```
+
+2. Install backend dependencies:
 ```bash
-# Clone the repository
-git clone <repository-url>
-cd fore-poster
-
-# Run the setup script
-./setup.sh
+pip install -r requirements.txt
 ```
 
-The setup script will:
-- Create a virtual environment if needed
-- Set up the .env file from .env.example if none exists
-- Ensure the environment configuration is correctly linked
-- Offer to install dependencies for both backend and frontend
-- Make development testing scripts executable
-
-### 2. Start the Application
-
-#### Option 1: Using Dev Scripts (Recommended)
+3. Install frontend dependencies:
 ```bash
-# Start the backend (in one terminal)
-./dev_backend.sh
-
-# Start the frontend (in another terminal)
-./dev_frontend.sh
+cd frontend
+npm install
 ```
 
-The dev scripts provide:
-- Automatic database reset with the backend script
-- Option to start the scheduler alongside the backend
-- Proper environment linking verification
-- Better logging and error handling
+### Running the Application
 
-#### Option 2: Manual Startup
+#### Backend
+
+Reset the database and create an admin user:
 ```bash
-# Reset and initialize the database with admin user
-python backend/reset_db.py
+cd backend
+python reset_db.py
+```
 
-# Start the Flask API server
-python backend/run.py
+Start the Flask API server:
+```bash
+cd backend
+python run.py
+```
 
-# Start development server (in a new terminal)
+To run the scheduler separately for development:
+```bash
+cd backend
+python fore_scheduler.py
+```
+
+#### Frontend
+
+Start the Vite development server:
+```bash
 cd frontend
 npm run dev
 ```
 
-### 3. Access the Application
+### Access the Application
 - Frontend: http://localhost:5173
 - Backend API: http://localhost:8000/api
 
-## Deployment
+## Production Deployment
 
-Fore-Poster includes a comprehensive deployment script for pushing updates to production:
+Fore-Poster includes a deployment script for pushing updates to production:
 
 ```bash
 # Deploy backend code and restart services
@@ -123,11 +126,10 @@ In production, the application runs as two systemd services:
 ## Project Structure
 ```
 fore-poster/
-├── .env                  # Single source of truth for environment variables
-├── .env.example          # Example environment file for reference
-├── setup.sh              # Setup script for environment and dependencies
 ├── deploy.sh             # Production deployment script
 ├── backend/              # Flask backend
+│   ├── .env              # Backend environment configuration
+│   ├── .env.example      # Example backend environment file
 │   ├── instance/         # Database location
 │   │   └── uploads/      # Uploaded images storage directory
 │   ├── core/             # Shared modules
@@ -143,47 +145,37 @@ fore-poster/
 │   ├── run.py            # Main entry point for backend
 │   └── wsgi.py           # WSGI entry point
 ├── frontend/             # React/TypeScript frontend
-│   ├── .env              # Symlink to root .env file
+│   ├── .env              # Frontend environment configuration
 │   ├── src/              # Source code
 │   └── ...               # Frontend configuration files
 └── requirements.txt      # Python dependencies
 ```
 
-## Environment Setup
+## Environment Configuration
 
-The project uses a single `.env` file in the root directory for all environment variables. This keeps configuration in one place and avoids duplication.
+The project uses separate `.env` files for backend and frontend, each in their own directory:
 
-### Key Environment Variables
+### Backend Environment Variables (`backend/.env`)
 
+The backend environment file includes configuration for:
+- Application environment (development/production)
+- AWS SES for email notifications
+- X/Twitter API credentials
+- Database connection settings
+- JWT authentication secrets
+- Admin user credentials
+
+### Frontend Environment Variables (`frontend/.env`)
+
+The frontend environment file contains only:
 ```
-# Application environment (development, testing, production)
-APP_ENV=development
-
-# AWS SES Configuration for Notifications
-AWS_REGION=us-east-1
-SES_SENDER=your-verified-email@example.com
-SES_RECIPIENT=notifications-recipient@example.com
-
-# X/Twitter API Credentials
-X_API_KEY=your_api_key
-X_API_SECRET=your_api_secret
-X_ACCESS_TOKEN=your_access_token
-X_ACCESS_TOKEN_SECRET=your_access_token_secret
-
-# Database Configuration
-DB_USER=dbuser
-DB_PASSWORD=secure_password
-DB_HOST=localhost
-DB_PORT=5432
-DB_NAME=fore_poster
+VITE_API_BASE_URL=http://localhost:8000/api
 ```
 
-For frontend access, a symbolic link is created from `frontend/.env` to the root `.env` file. This ensures that:
-1. Vite can find environment variables in the expected location
-2. Only variables with the `VITE_` prefix are exposed to the frontend code
-3. Changes to the root `.env` file are immediately reflected in the frontend
-
-The `setup.sh` script ensures this link is correctly created and maintained.
+This separation ensures that:
+1. Frontend code only has access to the API URL it needs
+2. Backend sensitive information stays isolated from the frontend
+3. Each part of the application can be configured independently
 
 ### Database
 - Development: SQLite database in `backend/instance/fore_poster.db`
@@ -191,7 +183,7 @@ The `setup.sh` script ensures this link is correctly created and maintained.
 
 ### Authentication
 - JWT-based authentication
-- Default admin user created from ADMIN_USERNAME and ADMIN_PASSWORD in .env
+- Default admin user created from credentials in the backend .env file
 
 ## Smart Scheduling Feature
 
@@ -237,18 +229,7 @@ Fore-Poster supports adding images to your social media posts:
 - Click the X button to remove an attached image
 
 ### Configuration
-The image upload feature can be configured through these environment variables:
-
-```
-# Maximum file size in megabytes (default: 16)
-MAX_UPLOAD_SIZE_MB=16
-
-# Allowed file extensions (default: 'png,jpg,jpeg,gif')
-ALLOWED_FILE_EXTENSIONS=png,jpg,jpeg,gif
-
-# Cache duration for served images in seconds (default: 86400 - 1 day)
-CACHE_MAX_AGE=86400
-```
+The image upload feature can be configured through environment variables in your backend .env file.
 
 ## Email Notifications
 
@@ -268,12 +249,7 @@ Each notification includes:
 - Any error messages or warnings
 
 ### Configuration:
-Email notifications require AWS SES configuration in your .env file:
-```
-AWS_REGION=us-east-1
-SES_SENDER=your-verified-email@example.com
-SES_RECIPIENT=notifications-recipient@example.com
-```
+Email notifications require AWS SES configuration in your backend `.env` file.
 
 In development mode, notifications are logged to console and log files instead of sending emails.
 
@@ -282,23 +258,34 @@ In development mode, notifications are logged to console and log files instead o
 ### Database Issues
 If you encounter database errors, try resetting the database:
 ```bash
-python backend/reset_db.py
+cd backend
+python reset_db.py
 ```
 
 ### Environment Variable Issues
 If your environment variables aren't being picked up correctly:
-1. Check that the `.env` file exists in the project root
-2. Verify that `frontend/.env` is a symbolic link to `../.env`
-3. Run `./setup.sh` to fix any environment issues
+
+1. For backend issues:
+   - Verify that `.env` exists in the backend directory
+   - Check that environment variables are correctly formatted (no spaces around = signs)
+   - Ensure no trailing spaces or comments on the same line as variables
+
+2. For frontend issues:
+   - Verify that `frontend/.env` exists and contains VITE_API_BASE_URL
+   - After changing frontend environment variables, restart the Vite dev server
 
 ### Notification System Issues
 If emails aren't being sent in production:
-1. Ensure AWS_REGION, SES_SENDER, and SES_RECIPIENT are properly set in .env
+1. Ensure AWS_REGION, SES_SENDER, and SES_RECIPIENT are properly set in backend .env
 2. Check that the APP_ENV environment variable is set to 'production'
 3. Restart both services after making environment changes:
    ```bash
    sudo systemctl restart fore-poster.service fore-scheduler.service
    ```
+
+## Development Status and Disclaimer
+
+**Note:** This project is under active development and some features may be incomplete or experience occasional issues. It was developed with assistance from AI tools, which may have introduced inconsistencies or inaccuracies in certain parts of the codebase or documentation. Users are encouraged to report any issues they encounter.
 
 ## License
 MIT License - see LICENSE file for details
