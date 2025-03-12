@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { PencilIcon, TrashIcon, SendIcon, CalendarIcon, PlusIcon, RefreshCwIcon, WifiIcon, AlertCircleIcon, CheckCircleIcon } from 'lucide-react';
+import { PencilIcon, TrashIcon, SendIcon, CalendarIcon, PlusIcon, RefreshCwIcon, WifiIcon } from 'lucide-react';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Alert, AlertDescription } from '@/components/ui/alert';
