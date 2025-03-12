@@ -59,6 +59,7 @@ npm run dev
 
 ## Features
 - Post scheduling and management
+- Smart scheduling that automatically selects optimal posting times
 - Multi-platform support (currently X/Twitter)
 - Image uploads for social media posts
 - Development/Production environment handling
@@ -108,22 +109,32 @@ The `setup.sh` script ensures this link is correctly created and maintained.
 - JWT-based authentication
 - Default admin user created from ADMIN_USERNAME and ADMIN_PASSWORD in .env
 
-## Troubleshooting
+## Smart Scheduling Feature
 
-### Database Issues
-If you encounter database errors, try resetting the database:
-```bash
-python backend/reset_db.py
-```
+Fore-Poster includes an intelligent scheduling system that automatically selects the optimal time to post your content based on social media best practices:
 
-### Environment Variable Issues
-If your environment variables aren't being picked up correctly:
-1. Check that the `.env` file exists in the project root
-2. Verify that `frontend/.env` is a symbolic link to `../.env`
-3. Run `./setup.sh` to fix any environment issues
+### Optimal Posting Times
+The system recognizes three peak engagement periods:
+- **Morning (7:00 AM)**: Catch your audience during their morning routine
+- **Noon (11:00 AM)**: Reach users during lunch breaks 
+- **Evening (6:00 PM)**: Connect with your audience after work hours
 
-## License
-MIT License - see LICENSE file for details
+### How It Works
+1. When creating a new post, the system analyzes your existing scheduled posts
+2. It finds the next available optimal time slot that doesn't conflict with other posts
+3. The time is automatically set for your new post
+4. You'll see a message indicating that an optimal time was selected
+
+### Quick Time Selection
+For easy scheduling, three convenient buttons are provided:
+- **Morning**: Schedule for 7:00 AM (today or tomorrow if it's already past)
+- **Noon**: Schedule for 11:00 AM (today or tomorrow if it's already past)
+- **Evening**: Schedule for 6:00 PM (today or tomorrow if it's already past)
+
+### Custom Scheduling
+If you prefer a different time, you can still:
+- Use the date/time picker for complete customization
+- Edit any suggested time to your preference
 
 ## Image Upload Feature
 
@@ -154,3 +165,20 @@ ALLOWED_FILE_EXTENSIONS=png,jpg,jpeg,gif
 # Cache duration for served images in seconds (default: 86400 - 1 day)
 CACHE_MAX_AGE=86400
 ```
+
+## Troubleshooting
+
+### Database Issues
+If you encounter database errors, try resetting the database:
+```bash
+python backend/reset_db.py
+```
+
+### Environment Variable Issues
+If your environment variables aren't being picked up correctly:
+1. Check that the `.env` file exists in the project root
+2. Verify that `frontend/.env` is a symbolic link to `../.env`
+3. Run `./setup.sh` to fix any environment issues
+
+## License
+MIT License - see LICENSE file for details

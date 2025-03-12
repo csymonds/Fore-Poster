@@ -11,9 +11,14 @@ import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
-import { CalendarIcon, X, Loader2 } from 'lucide-react';
+import { CalendarIcon, X, Loader2, SunIcon, Clock3Icon, MoonIcon } from 'lucide-react';
 import { Post, PostsApi } from '@/services/api';
-import { useCreatePost, useUpdatePost } from '@/hooks/usePosts';
+import { useCreatePost, useUpdatePost, usePosts } from '@/hooks/usePosts';
+import { 
+  OPTIMAL_POSTING_TIMES, 
+  findNextOptimalTimeSlot, 
+  createTimeSlot 
+} from '@/utils/dateUtils';
 
 interface PostModalProps {
   isOpen: boolean;
@@ -30,8 +35,48 @@ const PostModal: React.FC<PostModalProps> = ({ isOpen, onClose, post }) => {
   const [uploadError, setUploadError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  // Fetch all posts to determine optimal scheduling
+  const { data: allPosts } = usePosts();
+
   // Maximum file size: 16MB
   const MAX_FILE_SIZE = 16 * 1024 * 1024;
+
+  // Find the next available optimal time slot when modal opens
+  useEffect(() => {
+    if (isOpen && !post) {
+      if (allPosts) {
+        // Get scheduled times of all unposted posts
+        const scheduledTimes = allPosts
+          .filter(p => p.status !== 'posted')
+          .map(p => p.scheduled_time);
+        
+        // Find the next available optimal time slot
+        const nextSlot = findNextOptimalTimeSlot(scheduledTimes);
+        setScheduledTime(nextSlot);
+      } else {
+        // Default to next optimal time if posts aren't loaded yet
+        const now = new Date();
+        const optimalTimes = OPTIMAL_POSTING_TIMES.map(slot => 
+          createTimeSlot(now, slot.hour, slot.minute)
+        );
+        
+        // Find the first time slot in the future
+        const futureSlot = optimalTimes.find(time => time > now);
+        if (futureSlot) {
+          setScheduledTime(futureSlot);
+        } else {
+          // If all today's slots are past, use tomorrow morning
+          const tomorrow = new Date(now);
+          tomorrow.setDate(tomorrow.getDate() + 1);
+          setScheduledTime(createTimeSlot(
+            tomorrow, 
+            OPTIMAL_POSTING_TIMES[0].hour, 
+            OPTIMAL_POSTING_TIMES[0].minute
+          ));
+        }
+      }
+    }
+  }, [isOpen, post, allPosts]);
 
   // Reset form when modal opens/closes or post changes
   useEffect(() => {
@@ -43,9 +88,9 @@ const PostModal: React.FC<PostModalProps> = ({ isOpen, onClose, post }) => {
         setImageUrl(post.image_url);
         setImageFilename(post.image_filename);
       } else {
-        // Creating new post
+        // Creating new post - content was reset before
         setContent('');
-        setScheduledTime(new Date());
+        // Note: scheduledTime is set by the optimal time slot effect
         setImageUrl(undefined);
         setImageFilename(undefined);
       }
@@ -56,6 +101,26 @@ const PostModal: React.FC<PostModalProps> = ({ isOpen, onClose, post }) => {
 
   const createPost = useCreatePost();
   const updatePost = useUpdatePost();
+
+  const handleTimeSlotSelect = (slot: typeof OPTIMAL_POSTING_TIMES[0]) => {
+    const now = new Date();
+    let targetDate = new Date(scheduledTime); // Keep the date part
+    
+    // Create time slot for today
+    const todaySlot = createTimeSlot(now, slot.hour, slot.minute);
+    
+    // If today's slot is in the past, use tomorrow
+    if (todaySlot < now) {
+      const tomorrow = new Date(now);
+      tomorrow.setDate(tomorrow.getDate() + 1);
+      targetDate = createTimeSlot(tomorrow, slot.hour, slot.minute);
+    } else {
+      // Use today's slot
+      targetDate = todaySlot;
+    }
+    
+    setScheduledTime(targetDate);
+  };
 
   const handleImageUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const files = event.target.files;
@@ -196,6 +261,48 @@ const PostModal: React.FC<PostModalProps> = ({ isOpen, onClose, post }) => {
 
           <div className="space-y-2">
             <Label htmlFor="scheduled-time">Schedule Time</Label>
+            
+            {/* Quick Time Slot Selectors */}
+            <div className="flex flex-wrap gap-2 mb-2">
+              <Button 
+                type="button" 
+                size="sm"
+                variant="outline"
+                className="flex items-center gap-1 border-indigo-400 dark:border-indigo-500"
+                onClick={() => handleTimeSlotSelect(OPTIMAL_POSTING_TIMES[0])}
+              >
+                <SunIcon className="h-4 w-4" />
+                <span>Morning</span>
+              </Button>
+              <Button 
+                type="button" 
+                size="sm"
+                variant="outline"
+                className="flex items-center gap-1 border-indigo-400 dark:border-indigo-500"
+                onClick={() => handleTimeSlotSelect(OPTIMAL_POSTING_TIMES[1])}
+              >
+                <Clock3Icon className="h-4 w-4" />
+                <span>Noon</span>
+              </Button>
+              <Button 
+                type="button" 
+                size="sm"
+                variant="outline"
+                className="flex items-center gap-1 border-indigo-400 dark:border-indigo-500"
+                onClick={() => handleTimeSlotSelect(OPTIMAL_POSTING_TIMES[2])}
+              >
+                <MoonIcon className="h-4 w-4" />
+                <span>Evening</span>
+              </Button>
+            </div>
+
+            {/* Show which optimal slot was selected */}
+            {!post && (
+              <p className="text-xs text-muted-foreground mb-2">
+                We've scheduled your post for the next available optimal time slot. Feel free to adjust.
+              </p>
+            )}
+            
             <div className="relative">
               <DatePicker
                 selected={scheduledTime}
