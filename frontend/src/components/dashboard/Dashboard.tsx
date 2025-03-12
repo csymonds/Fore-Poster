@@ -8,6 +8,7 @@ import useSSE from '@/hooks/useSSE';
 import PostModal from './PostModal';
 import { Post } from '@/services/api';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { formatDate } from '@/utils/dateUtils';
 
 const Dashboard = () => {
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -40,18 +41,6 @@ const Dashboard = () => {
       await postNow.mutateAsync(id);
     } catch (error) {
       console.error('Failed to post:', error);
-    }
-  };
-
-  const formatDate = (dateString: string) => {
-    try {
-      return new Date(dateString).toLocaleString('en-US', {
-        dateStyle: 'medium',
-        timeStyle: 'short'
-      });
-    } catch (error) {
-      console.error('Failed to format date:', error);
-      return dateString;
     }
   };
 
