@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { PencilIcon, TrashIcon, SendIcon, CalendarIcon, PlusIcon, RefreshCwIcon, WifiIcon } from 'lucide-react';
+import { PencilIcon, TrashIcon, SendIcon, CalendarIcon, PlusIcon, RefreshCwIcon, WifiIcon, AlertCircleIcon, CheckCircleIcon } from 'lucide-react';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Alert, AlertDescription } from '@/components/ui/alert';
@@ -9,6 +9,18 @@ import PostModal from './PostModal';
 import { Post } from '@/services/api';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { formatDate } from '@/utils/dateUtils';
+
+/**
+ * Sort posts by scheduled time
+ * @param a First post
+ * @param b Second post
+ * @returns Sort order: -1 if a is before b, 1 if a is after b, 0 if equal
+ */
+const sortByScheduledTime = (a: Post, b: Post): number => {
+  const dateA = new Date(a.scheduled_time);
+  const dateB = new Date(b.scheduled_time);
+  return dateA.getTime() - dateB.getTime();
+};
 
 const Dashboard = () => {
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -44,9 +56,17 @@ const Dashboard = () => {
     }
   };
 
-  // Filter posts based on status
-  const unpostedPosts = posts?.filter(post => post.status !== 'posted') || [];
-  const postedPosts = posts?.filter(post => post.status === 'posted') || [];
+  // Filter and sort posts
+  const unpostedPosts = posts
+    ? [...posts.filter(post => post.status !== 'posted')].sort(sortByScheduledTime)
+    : [];
+    
+  const postedPosts = posts
+    ? [...posts.filter(post => post.status === 'posted')].sort((a, b) => 
+        // Sort posted posts in reverse chronological order (newest first)
+        sortByScheduledTime(b, a)
+      )
+    : [];
 
   // Function to render a list of posts
   const renderPosts = (postsList: Post[]) => {
@@ -204,6 +224,16 @@ const Dashboard = () => {
               New Post
             </Button>
           </div>
+        </div>
+
+        {/* Sort information message */}
+        <div className="mb-4 text-sm text-muted-foreground flex items-center">
+          <CalendarIcon className="h-4 w-4 mr-1" />
+          <span>
+            {activeTab === 'unposted' 
+              ? 'Posts sorted by scheduled time (earliest first)' 
+              : 'Posts sorted by posted time (most recent first)'}
+          </span>
         </div>
 
         <Tabs defaultValue="unposted" onValueChange={setActiveTab} className="w-full">
