@@ -27,7 +27,7 @@ const Dashboard = () => {
   const [selectedPost, setSelectedPost] = useState<Post | undefined>(undefined);
   const [activeTab, setActiveTab] = useState('unposted');
 
-  const { data: posts, isLoading, isFetching, error, refetch } = usePosts({ refetchInterval: 3000 });
+  const { data: posts, isLoading, isFetching, error, refetch } = usePosts();
   const deletePost = useDeletePost();
   const postNow = usePostNow();
   

@@ -1,20 +1,44 @@
 // src/hooks/usePosts.ts
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { PostsApi, CreatePostPayload, UpdatePostPayload } from '@/services/api';
+import { useSSE } from './useSSE';
+import { useEffect } from 'react';
 
-// Default interval in milliseconds (5 seconds)
-const DEFAULT_REFETCH_INTERVAL = 5000;
+// Only use polling as a fallback if SSE isn't available 
+// Default interval in milliseconds (30 seconds instead of 5)
+const DEFAULT_REFETCH_INTERVAL = 30000;
 
 export const usePosts = (options = {}) => {
-  return useQuery({
+  // Get API base URL from environment
+  const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || '';
+  const baseUrl = apiBaseUrl.endsWith('/api') ? apiBaseUrl : `${apiBaseUrl}/api`;
+  const sseUrl = `${baseUrl}/events`;
+  
+  // Set up SSE connection for real-time updates
+  const { connected: sseConnected } = useSSE({
+    url: sseUrl
+  });
+  
+  const query = useQuery({
     queryKey: ['posts'],
     queryFn: () => PostsApi.getPosts(),
-    // Automatically refetch data every few seconds
-    refetchInterval: DEFAULT_REFETCH_INTERVAL,
-    // Also refetch when the window regains focus
+    // Only use polling as a fallback if SSE isn't connected
+    refetchInterval: sseConnected ? false : DEFAULT_REFETCH_INTERVAL,
+    // Always refetch when window regains focus
     refetchOnWindowFocus: true,
     ...options
   });
+
+  // Log SSE connection status
+  useEffect(() => {
+    if (sseConnected) {
+      console.log('Using SSE for real-time post updates');
+    } else {
+      console.log('SSE not connected, falling back to polling');
+    }
+  }, [sseConnected]);
+  
+  return query;
 };
 
 export const useCreatePost = () => {
