@@ -162,7 +162,7 @@ const PostModal: React.FC<PostModalProps> = ({ isOpen, onClose, post }) => {
   const handleGetMeStarted = async () => {
     setIsGenerating(true);
     try {
-      const prompt = 'Write an engaging, informative X post about recent AI advancements or news. Include specific examples, technical insights, and why this matters to the AI community. Add 1-2 relevant hashtags. Keep it under 280 characters and make it conversational yet professional.';
+      const prompt = 'Do a web search for an AI advancement or bit of news that happened recently. Write a banger X post about it.';
       const text = await AIApi.generateContent(prompt);
       setContent(text);
     } catch (error) {

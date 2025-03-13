@@ -63,11 +63,12 @@ class AIService:
             logger.info(f"Sending request to OpenAI API with prompt: {prompt}")
             
             # System instructions and prompt
-            full_prompt = f"You are a social media expert who writes engaging, factual posts for X (formerly Twitter). Write in a professional but conversational tone. Keep posts concise and impactful.\n\n{prompt}"
+            full_prompt = f"You are a social media expert who writes engaging, factual posts for X (formerly Twitter). Your goal is growing your audience and get attention. Make the algorithm happy. Keep it under 280 characters. Avoid exclamation marks. Don’t be cringe. Don’t be cheesy. Use emojis\n\n{prompt}"
             
             # Make a direct API request using HTTP Bearer authentication
             data = {
                 "model": "gpt-4o",
+                "tools":[{ "type": "web_search_preview" }],
                 "input": full_prompt
             }
             
