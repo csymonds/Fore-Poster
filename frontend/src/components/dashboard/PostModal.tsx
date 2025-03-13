@@ -11,7 +11,7 @@ import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
-import { CalendarIcon, X, Loader2, SunIcon, Clock3Icon, MoonIcon } from 'lucide-react';
+import { CalendarIcon, X, Loader2, SunIcon, Clock3Icon, MoonIcon, ChevronDown, ChevronUp } from 'lucide-react';
 import { Post, PostsApi, AIApi } from '@/services/api';
 import { useCreatePost, useUpdatePost, usePosts } from '@/hooks/usePosts';
 import { 
@@ -34,6 +34,8 @@ const PostModal: React.FC<PostModalProps> = ({ isOpen, onClose, post }) => {
   const [isGenerating, setIsGenerating] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [aiPrompt, setAIPrompt] = useState("Do a web search for an AI advancement or bit of news that happened recently. Write a banger X post about it.");
+  const [showPromptEditor, setShowPromptEditor] = useState(false);
 
   // Fetch all posts to determine optimal scheduling
   const { data: allPosts } = usePosts();
@@ -162,8 +164,7 @@ const PostModal: React.FC<PostModalProps> = ({ isOpen, onClose, post }) => {
   const handleGetMeStarted = async () => {
     setIsGenerating(true);
     try {
-      const prompt = 'Do a web search for an AI advancement or bit of news that happened recently. Write a banger X post about it.';
-      const text = await AIApi.generateContent(prompt);
+      const text = await AIApi.generateContent(aiPrompt);
       setContent(text);
     } catch (error) {
       console.error('Failed to generate AI content', error);
@@ -225,7 +226,24 @@ const PostModal: React.FC<PostModalProps> = ({ isOpen, onClose, post }) => {
               >
                 {isGenerating ? 'Generating...' : 'Get me started'}
               </Button>
+              <Button 
+                type="button"
+                onClick={() => setShowPromptEditor(!showPromptEditor)}
+                variant="outline"
+                size="icon"
+                className="p-1"
+              >
+                {showPromptEditor ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+              </Button>
             </div>
+            {showPromptEditor && (
+              <Input
+                type="text"
+                value={aiPrompt}
+                onChange={(e) => setAIPrompt(e.target.value)}
+                placeholder="Adjust prompt for AI content generation"
+              />
+            )}
             <Textarea
               id="content"
               value={content}
