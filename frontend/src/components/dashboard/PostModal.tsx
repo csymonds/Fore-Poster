@@ -12,7 +12,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { CalendarIcon, X, Loader2, SunIcon, Clock3Icon, MoonIcon } from 'lucide-react';
-import { Post, PostsApi } from '@/services/api';
+import { Post, PostsApi, AIApi } from '@/services/api';
 import { useCreatePost, useUpdatePost, usePosts } from '@/hooks/usePosts';
 import { 
   OPTIMAL_POSTING_TIMES, 
@@ -27,11 +27,11 @@ interface PostModalProps {
 }
 
 const PostModal: React.FC<PostModalProps> = ({ isOpen, onClose, post }) => {
-  const [content, setContent] = useState('');
+  const [content, setContent] = useState(post ? post.content : '');
   const [scheduledTime, setScheduledTime] = useState<Date>(new Date());
   const [imageUrl, setImageUrl] = useState<string | null | undefined>(undefined);
   const [imageFilename, setImageFilename] = useState<string | null | undefined>(undefined);
-  const [isUploading, setIsUploading] = useState(false);
+  const [isGenerating, setIsGenerating] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -94,7 +94,7 @@ const PostModal: React.FC<PostModalProps> = ({ isOpen, onClose, post }) => {
         setImageUrl(undefined);
         setImageFilename(undefined);
       }
-      setIsUploading(false);
+      setIsGenerating(false);
       setUploadError(null);
     }
   }, [isOpen, post]);
@@ -136,7 +136,7 @@ const PostModal: React.FC<PostModalProps> = ({ isOpen, onClose, post }) => {
         return;
       }
       
-      setIsUploading(true);
+      setIsGenerating(true);
       try {
         const response = await PostsApi.uploadImage(file);
         setImageUrl(response.url);
@@ -146,7 +146,7 @@ const PostModal: React.FC<PostModalProps> = ({ isOpen, onClose, post }) => {
         setUploadError('Failed to upload image');
         console.error('Image upload error:', error);
       } finally {
-        setIsUploading(false);
+        setIsGenerating(false);
       }
     }
   };
@@ -159,10 +159,23 @@ const PostModal: React.FC<PostModalProps> = ({ isOpen, onClose, post }) => {
     }
   };
 
+  const handleGetMeStarted = async () => {
+    setIsGenerating(true);
+    try {
+      const prompt = 'Write a banger X post about the latest AI news.';
+      const text = await AIApi.generateContent(prompt);
+      setContent(text);
+    } catch (error) {
+      console.error('Failed to generate AI content', error);
+    } finally {
+      setIsGenerating(false);
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (isUploading) {
+    if (isGenerating) {
       alert("Please wait for image upload to complete before saving");
       return;
     }
@@ -201,7 +214,18 @@ const PostModal: React.FC<PostModalProps> = ({ isOpen, onClose, post }) => {
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="space-y-2">
-            <Label htmlFor="content">Content</Label>
+            <div className="flex items-center gap-2">
+              <Label htmlFor="content">Content</Label>
+              <Button 
+                type="button"
+                onClick={handleGetMeStarted}
+                disabled={isGenerating}
+                variant="outline"
+                size="sm"
+              >
+                {isGenerating ? 'Generating...' : 'Get me started'}
+              </Button>
+            </div>
             <Textarea
               id="content"
               value={content}
@@ -221,11 +245,11 @@ const PostModal: React.FC<PostModalProps> = ({ isOpen, onClose, post }) => {
                 id="image"
                 accept="image/*"
                 onChange={handleImageUpload}
-                disabled={isUploading}
+                disabled={isGenerating}
                 className="cursor-pointer"
               />
 
-              {isUploading && (
+              {isGenerating && (
                 <div className="flex items-center gap-2 text-muted-foreground">
                   <Loader2 className="h-4 w-4 animate-spin" />
                   <span>Uploading...</span>
@@ -336,7 +360,7 @@ const PostModal: React.FC<PostModalProps> = ({ isOpen, onClose, post }) => {
             </Button>
             <Button
               type="submit"
-              disabled={createPost.isPending || updatePost.isPending || isUploading}
+              disabled={createPost.isPending || updatePost.isPending || isGenerating}
               className="bg-indigo-500 hover:bg-indigo-600 text-white"
             >
               {createPost.isPending || updatePost.isPending ? 'Saving...' : 'Save'}

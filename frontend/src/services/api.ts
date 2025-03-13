@@ -38,6 +38,10 @@ export interface ImageUploadResponse {
   original_filename: string;
 }
 
+export interface AIContentResponse {
+  text: string;
+}
+
 interface ApiError {
   error: string;
   status?: number;
@@ -218,6 +222,28 @@ export class PostsApi {
     } catch (error) {
       // Only log errors
       console.error("Image upload error:", error);
+      throw error;
+    }
+  }
+}
+
+export class AIApi {
+  static async generateContent(prompt: string): Promise<string> {
+    try {
+      const response = await fetch(getFullUrl('ai/generate'), {
+        method: 'POST',
+        headers: getAuthHeaders(),
+        body: JSON.stringify({ input: prompt }),
+      });
+
+      if (!response.ok) {
+        return handleApiError(response);
+      }
+
+      const data: AIContentResponse = await response.json();
+      return data.text;
+    } catch (error) {
+      console.error('AI content generation error:', error);
       throw error;
     }
   }

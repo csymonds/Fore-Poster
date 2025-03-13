@@ -850,6 +850,21 @@ def upload_file():
         app.logger.error(f"Error uploading file: {str(e)}", exc_info=True)
         return jsonify({'error': str(e)}), 500
 
+@app.route('/api/ai/generate', methods=['POST'])
+@auth.require_auth
+def generate_ai_content():
+    """AI content generation endpoint."""
+    data = request.get_json()
+    
+    if not data or 'input' not in data:
+        return jsonify({'error': 'Input prompt is required'}), 400
+    
+    # For now, we'll return a simulated response
+    # In the future, this could integrate with OpenAI or another AI service
+    simulated_text = 'Banger X post: Breaking news in AI: revolutionary breakthroughs in neural net efficiency have emerged in the research labs of Silicon Valley. Stay tuned for more updates!'
+    
+    return jsonify({'text': simulated_text})
+
 # Initialize SSE support
 try:
     from sse_manager import SSEManager
