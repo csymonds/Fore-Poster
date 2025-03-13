@@ -46,6 +46,7 @@ import os.path
 # Import shared modules
 from core.notification import notifier as _notifier_compat, init_notifier
 from core.posting import post_to_platform
+from core.ai_service import ai_service, init_ai_service
 
 # Initialize logger first, but only once
 logger = logging.getLogger(__name__)
@@ -242,6 +243,9 @@ app.config.from_object(Config)
 
 # Properly initialize the notifier after Config is set up
 notifier = init_notifier()
+
+# Initialize AI service
+ai_service = init_ai_service()
 
 # Set up upload folder from environment
 upload_dir = os.getenv('UPLOAD_FOLDER', 'instance/uploads')
@@ -849,6 +853,23 @@ def upload_file():
     except Exception as e:
         app.logger.error(f"Error uploading file: {str(e)}", exc_info=True)
         return jsonify({'error': str(e)}), 500
+
+@app.route('/api/ai/generate', methods=['POST'])
+@auth.require_auth
+def generate_ai_content():
+    """AI content generation endpoint."""
+    data = request.get_json()
+    
+    if not data or 'input' not in data:
+        return jsonify({'error': 'Input prompt is required'}), 400
+    
+    # Use our AI service module
+    result = ai_service.generate_post_content(data['input'])
+    
+    if result['success']:
+        return jsonify({'text': result['text']})
+    else:
+        return jsonify({'error': result['error']}), 500
 
 # Initialize SSE support
 try:

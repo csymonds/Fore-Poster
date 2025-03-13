@@ -1,138 +1,125 @@
-import { useState, useEffect, useRef } from 'react';
-import { Post } from '@/services/api';
+import { useState, useEffect } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 
-// Define the types of events we expect from the server
-interface SSEEvent {
-  type: 'connected' | 'heartbeat' | 'post_update';
-  data?: Post;
+interface SSEOptions {
+  url?: string;
+  onMessage?: (event: MessageEvent) => void;
+  onError?: (error: Event) => void;
 }
 
 /**
- * Hook to subscribe to Server-Sent Events for real-time updates
- * 
- * @returns Object with connection status and error information
+ * Hook to connect to Server-Sent Events for real-time updates
  */
-export const useSSE = () => {
-  const [isConnected, setIsConnected] = useState(false);
-  const [lastEvent, setLastEvent] = useState<SSEEvent | null>(null);
-  const [connectionError, setConnectionError] = useState<string | null>(null);
-  const [retryCount, setRetryCount] = useState(0);
-  const eventSourceRef = useRef<EventSource | null>(null);
+export const useSSE = (options: SSEOptions = {}) => {
+  const [connected, setConnected] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const queryClient = useQueryClient();
-  
-  // Maximum number of retry attempts
-  const MAX_RETRIES = 3;
+
+  // Get API base URL from environment for default URL
+  const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || '';
+  const baseUrl = apiBaseUrl.endsWith('/api') ? apiBaseUrl : `${apiBaseUrl}/api`;
+  const defaultUrl = `${baseUrl}/events`;
+
+  // Use provided URL or default
+  const url = options.url || defaultUrl;
+  const { onMessage, onError } = options;
 
   useEffect(() => {
-    // Only attempt to connect if we haven't exceeded the retry limit
-    if (retryCount > MAX_RETRIES) {
-      setConnectionError('Maximum retry attempts reached. Live updates are disabled.');
+    console.log(`🔄 Setting up SSE connection to ${url}`);
+    
+    // Force immediate return in development if SSE disabled
+    const enableSSE = import.meta.env.VITE_ENABLE_SSE === 'true';
+    if (import.meta.env.DEV && !enableSSE) {
+      console.log('⚠️ SSE explicitly disabled in development. Set VITE_ENABLE_SSE=true to enable.');
       return;
     }
 
-    // Connect to the SSE endpoint using the correct environment variable
-    // Remove the '/api' part from the end since we'll add it ourselves
-    const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || '';
-    const baseUrl = apiBaseUrl.endsWith('/api') ? apiBaseUrl : `${apiBaseUrl}/api`;
-    const url = `${baseUrl}/events`;
-    
-    console.log(`Connecting to SSE endpoint: ${url} (Attempt ${retryCount + 1}/${MAX_RETRIES + 1})`);
-    
+    // Check if EventSource is supported in this browser
+    if (!window.EventSource) {
+      console.error('⛔ EventSource is not supported in this browser');
+      setError('EventSource not supported in this browser');
+      return;
+    }
+
+    let eventSource: EventSource | null = null;
     try {
-      const eventSource = new EventSource(url);
-      eventSourceRef.current = eventSource;
+      // Create a new event source
+      console.log(`📡 Creating EventSource for ${url}`);
+      eventSource = new EventSource(url);
       
-      // Set up event handlers
+      // Handle connection open
       eventSource.onopen = () => {
-        console.log('SSE connection opened');
-        setIsConnected(true);
-        setConnectionError(null);
-        // Reset retry count on successful connection
-        setRetryCount(0);
+        console.log('✅ SSE connection established');
+        setConnected(true);
+        setError(null);
       };
-      
-      eventSource.onerror = (error) => {
-        console.error('SSE connection error:', error);
-        setIsConnected(false);
-        
-        // Increment retry count
-        setRetryCount(prev => prev + 1);
-        
-        // If we've exceeded the retry limit, stop trying
-        if (retryCount >= MAX_RETRIES) {
-          setConnectionError('Failed to establish connection to the server. Live updates are disabled.');
-          console.warn('SSE connection failed after maximum retries');
-          eventSource.close();
-          return;
-        }
-        
-        // Try to reconnect after a delay
-        setTimeout(() => {
-          console.log(`Reconnecting to SSE endpoint: ${url} (Attempt ${retryCount + 2}/${MAX_RETRIES + 1})`);
-          eventSource.close();
-          
-          // The next connection attempt will happen when the component re-renders
-          // due to the retryCount state change
-        }, 5000);
-      };
-      
+
+      // Handle all messages
       eventSource.onmessage = (event) => {
         try {
-          const data = JSON.parse(event.data) as SSEEvent;
-          setLastEvent(data);
+          const data = JSON.parse(event.data);
+          console.log('📨 SSE message received:', data);
           
-          // Handle different event types
-          switch (data.type) {
-            case 'connected':
-              console.log('SSE connection established');
-              setIsConnected(true);
-              setConnectionError(null);
-              break;
-              
-            case 'heartbeat':
-              // Keep-alive message, no action needed
-              break;
-              
-            case 'post_update':
-              if (data.data) {
-                console.log('Received post update:', data.data);
-                // Update the React Query cache with the new data
-                queryClient.setQueryData<Post[] | undefined>(
-                  ['posts'],
-                  (oldPosts) => {
-                    if (!oldPosts) return undefined;
-                    
-                    // Find and update the post in the cache
-                    return oldPosts.map(post => 
-                      post.id === data.data?.id ? data.data : post
-                    );
-                  }
-                );
-              }
-              break;
+          // Handle different event types from the existing backend
+          if (data.type === 'connected') {
+            console.log('🔗 SSE connection confirmed by server');
+          } else if (data.type === 'heartbeat') {
+            console.log('💓 SSE heartbeat received');
+          } else if (data.type === 'post_update') {
+            console.log('📝 Post update received:', data.data);
+            // Invalidate posts query to trigger a refetch
+            queryClient.invalidateQueries({ queryKey: ['posts'] });
+            
+            // Call custom handler if provided
+            if (onMessage) {
+              onMessage(event);
+            }
           }
-        } catch (error) {
-          console.error('Error parsing SSE message:', error);
+        } catch (e) {
+          console.error('❌ Error parsing SSE message:', e);
         }
       };
-      
-      // Clean up on unmount
-      return () => {
-        eventSource.close();
+
+      // Handle errors
+      eventSource.onerror = (e) => {
+        console.error('❌ SSE connection error:', e);
+        setConnected(false);
+        setError('Connection error');
+        
+        if (onError) {
+          onError(e);
+        }
+        
+        // Try to close the connection on error
+        try {
+          eventSource?.close();
+        } catch (closeError) {
+          console.error('Error closing SSE connection after error:', closeError);
+        }
       };
-    } catch (error) {
-      console.error('Error creating EventSource:', error);
-      setConnectionError('Failed to establish connection to the server. Live updates are disabled.');
+
+      // Clean up the connection when component unmounts
+      return () => {
+        console.log('🔒 Closing SSE connection');
+        eventSource?.close();
+        setConnected(false);
+      };
+    } catch (e) {
+      console.error('⛔ Error setting up SSE:', e);
+      setError(`Setup error: ${e instanceof Error ? e.message : String(e)}`);
+      setConnected(false);
+      
+      // Try to close the connection on error
+      try {
+        eventSource?.close();
+      } catch (closeError) {
+        console.error('Error closing SSE connection after setup error:', closeError);
+      }
     }
-  }, [queryClient, retryCount]);
-  
-  return { 
-    isConnected, 
-    lastEvent,
-    connectionError,
-    hasExceededRetries: retryCount > MAX_RETRIES
-  };
+  }, [url, queryClient, onMessage, onError]);
+
+  // Return both connected and isConnected for backward compatibility
+  return { connected, isConnected: connected, error };
 };
 
 export default useSSE; 
