@@ -19,7 +19,6 @@ import {
   findNextOptimalTimeSlot, 
   createTimeSlot 
 } from '@/utils/dateUtils';
-import { settingsStore } from '@/hooks/useSettings';
 
 interface PostModalProps {
   isOpen: boolean;

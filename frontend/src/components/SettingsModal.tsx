@@ -21,7 +21,7 @@ interface SettingsModalProps {
 
 const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose }) => {
   const [darkMode, setDarkMode] = useDarkMode();
-  const { settings, updateAppearance, updateAI, updatePosts, resetSettings } = useSettings();
+  const { settings, updateAI, updatePosts, resetSettings } = useSettings();
   const { toast } = useToast();
   const [isSyncing, setIsSyncing] = useState(false);
   const [activeTab, setActiveTab] = useState('appearance');
