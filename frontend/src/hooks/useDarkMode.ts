@@ -2,7 +2,20 @@ import { useEffect, useState } from 'react';
 
 export function useDarkMode() {
   const [darkMode, setDarkMode] = useState(() => {
-    // Check localStorage first
+    // Check for the newer settings format first
+    try {
+      const storedSettings = localStorage.getItem('appSettings');
+      if (storedSettings) {
+        const parsedSettings = JSON.parse(storedSettings);
+        if (parsedSettings.appearance && 'darkMode' in parsedSettings.appearance) {
+          return parsedSettings.appearance.darkMode;
+        }
+      }
+    } catch (error) {
+      console.error('Error reading newer settings format:', error);
+    }
+    
+    // Fall back to the old standalone darkMode setting
     const stored = localStorage.getItem('darkMode');
     if (stored !== null) {
       return stored === 'true';
@@ -16,14 +29,31 @@ export function useDarkMode() {
     return false;
   });
 
-  // Update document class and localStorage when darkMode changes
+  // Update document class and both storage locations when darkMode changes
   useEffect(() => {
     if (darkMode) {
       document.documentElement.classList.add('dark');
     } else {
       document.documentElement.classList.remove('dark');
     }
+    
+    // Write to both the old location and new settings format for backward compatibility
     localStorage.setItem('darkMode', darkMode.toString());
+    
+    // Update the new settings format if it exists
+    try {
+      const storedSettings = localStorage.getItem('appSettings');
+      if (storedSettings) {
+        const parsedSettings = JSON.parse(storedSettings);
+        parsedSettings.appearance = { 
+          ...parsedSettings.appearance,
+          darkMode 
+        };
+        localStorage.setItem('appSettings', JSON.stringify(parsedSettings));
+      }
+    } catch (error) {
+      console.error('Error updating appearance settings:', error);
+    }
   }, [darkMode]);
 
   useEffect(() => {
@@ -40,7 +70,7 @@ export function useDarkMode() {
   useEffect(() => {
     const handleKeyPress = (e: KeyboardEvent) => {
       if (e.ctrlKey && e.key === 'j') { // Ctrl+J to toggle dark mode
-        setDarkMode(prev => !prev);
+        setDarkMode((prev: boolean) => !prev);
       }
     };
     
