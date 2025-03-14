@@ -16,6 +16,9 @@ logger = logging.getLogger(__name__)
 class AIService:
     """Service class for AI-related operations."""
     
+    # Default system prompt for AI content generation
+    DEFAULT_SYSTEM_PROMPT = "You are a social media expert who writes engaging, factual posts for X (formerly Twitter). Your goal is growing your audience and get attention. Make the algorithm happy. Keep it under 280 characters. Avoid exclamation marks. Don't be cringe. Don't be cheesy. Use emojis"
+    
     def __init__(self, api_key=None):
         """
         Initialize the AI service with an API key.
@@ -41,12 +44,15 @@ class AIService:
         """Check if the AI service is available and configured properly."""
         return self.is_initialized and self.api_key is not None
     
-    def generate_post_content(self, prompt):
+    def generate_post_content(self, prompt, system_prompt=None, temperature=None, web_search=None):
         """
         Generate social media post content using AI.
         
         Args:
             prompt: The prompt to send to the AI service
+            system_prompt: Optional override for system instructions
+            temperature: Optional override for model temperature
+            web_search: Optional override for web search capability
             
         Returns:
             dict: A dictionary with the generated text or error information
@@ -62,15 +68,25 @@ class AIService:
             # Log the request
             logger.info(f"Sending request to OpenAI API with prompt: {prompt}")
             
+            # Use provided system prompt or default
+            system_instructions = system_prompt or self.DEFAULT_SYSTEM_PROMPT
+            
             # System instructions and prompt
-            full_prompt = f"You are a social media expert who writes engaging, factual posts for X (formerly Twitter). Your goal is growing your audience and get attention. Make the algorithm happy. Keep it under 280 characters. Avoid exclamation marks. Don’t be cringe. Don’t be cheesy. Use emojis\n\n{prompt}"
+            full_prompt = f"{system_instructions}\n\n{prompt}"
             
             # Make a direct API request using HTTP Bearer authentication
             data = {
                 "model": "gpt-4o",
-                "tools":[{ "type": "web_search_preview" }],
                 "input": full_prompt
             }
+            
+            # Add temperature if provided
+            if temperature is not None:
+                data["temperature"] = float(temperature)
+            
+            # Add web search tools if enabled
+            if web_search or (web_search is None and True):  # Default to True if not specified
+                data["tools"] = [{ "type": "web_search_preview" }]
             
             response = requests.post(
                 self.api_url,

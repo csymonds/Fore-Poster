@@ -248,3 +248,65 @@ export class AIApi {
     }
   }
 }
+
+// Add new SettingsApi for backend-synced settings
+export interface SystemSettings {
+  aiSystemPrompt?: string;
+  temperature?: number;
+  webSearchEnabled?: boolean;
+}
+
+export class SettingsApi {
+  static async getSettings(): Promise<SystemSettings> {
+    try {
+      const response = await fetch(getFullUrl('settings'), {
+        headers: getAuthHeaders(),
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error(`Settings fetch failed: ${response.status} - ${errorText}`);
+        return handleApiError(response);
+      }
+
+      return response.json();
+    } catch (error) {
+      console.error('Settings fetch error:', error);
+      throw error;
+    }
+  }
+
+  static async updateSettings(settings: SystemSettings): Promise<SystemSettings> {
+    try {
+      console.log('Sending settings to server:', JSON.stringify(settings));
+      const response = await fetch(getFullUrl('settings'), {
+        method: 'PUT',
+        headers: getAuthHeaders(),
+        body: JSON.stringify(settings),
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error(`Settings update failed: ${response.status} - ${errorText}`);
+        return handleApiError(response);
+      }
+
+      return response.json();
+    } catch (error) {
+      console.error('Settings update error:', error);
+      throw error;
+    }
+  }
+
+  static async syncAISettings(settings: {
+    systemPrompt?: string;
+    temperature?: number;
+    webSearchEnabled?: boolean;
+  }): Promise<SystemSettings> {
+    return this.updateSettings({
+      aiSystemPrompt: settings.systemPrompt,
+      temperature: settings.temperature,
+      webSearchEnabled: settings.webSearchEnabled,
+    });
+  }
+}

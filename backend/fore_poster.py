@@ -43,6 +43,7 @@ import pytz
 import hashlib
 import uuid
 import os.path
+import json
 # Import shared modules
 from core.notification import notifier as _notifier_compat, init_notifier
 from core.posting import post_to_platform
@@ -863,8 +864,18 @@ def generate_ai_content():
     if not data or 'input' not in data:
         return jsonify({'error': 'Input prompt is required'}), 400
     
-    # Use our AI service module
-    result = ai_service.generate_post_content(data['input'])
+    # Get the current AI settings from the database
+    system_prompt = Settings.get('ai_system_prompt', ai_service.DEFAULT_SYSTEM_PROMPT)
+    temperature = Settings.get('ai_temperature', 0.7)
+    web_search_enabled = Settings.get('ai_web_search_enabled', True)
+    
+    # Use our AI service module with the configured settings
+    result = ai_service.generate_post_content(
+        data['input'],
+        system_prompt=system_prompt,
+        temperature=temperature,
+        web_search=web_search_enabled
+    )
     
     if result['success']:
         return jsonify({'text': result['text']})
@@ -878,6 +889,77 @@ try:
     logger.info("Server-Sent Events (SSE) initialized for real-time updates")
 except ImportError:
     logger.warning("Could not initialize Server-Sent Events (SSE) support")
+
+# Add Settings model
+class Settings(db.Model):
+    """Model for storing application settings"""
+    id = db.Column(db.Integer, primary_key=True)
+    key = db.Column(db.String(128), unique=True, nullable=False)
+    value = db.Column(db.Text, nullable=False)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    @classmethod
+    def get(cls, key, default=None):
+        """Get a setting value by key"""
+        setting = cls.query.filter_by(key=key).first()
+        if setting:
+            try:
+                return json.loads(setting.value)
+            except json.JSONDecodeError:
+                return setting.value
+        return default
+
+    @classmethod
+    def set(cls, key, value):
+        """Set a setting value"""
+        if isinstance(value, (dict, list, tuple)):
+            value = json.dumps(value)
+        else:
+            value = str(value)
+            
+        setting = cls.query.filter_by(key=key).first()
+        if setting:
+            setting.value = value
+        else:
+            setting = cls(key=key, value=value)
+            db.session.add(setting)
+        db.session.commit()
+        return setting
+
+# Add settings routes
+@app.route('/api/settings', methods=['GET'])
+@auth.require_auth
+def get_settings():
+    """Get application settings"""
+    # For now, we only have AI settings
+    ai_system_prompt = Settings.get('ai_system_prompt', ai_service.DEFAULT_SYSTEM_PROMPT)
+    temperature = Settings.get('ai_temperature', 0.7)
+    web_search_enabled = Settings.get('ai_web_search_enabled', True)
+    
+    return jsonify({
+        'aiSystemPrompt': ai_system_prompt,
+        'temperature': temperature,
+        'webSearchEnabled': web_search_enabled
+    })
+
+@app.route('/api/settings', methods=['PUT'])
+@auth.require_auth
+def update_settings():
+    """Update application settings"""
+    data = request.get_json()
+    
+    # Update AI settings if provided
+    if data.get('aiSystemPrompt') is not None:
+        Settings.set('ai_system_prompt', data['aiSystemPrompt'])
+        
+    if data.get('temperature') is not None:
+        Settings.set('ai_temperature', data['temperature'])
+        
+    if data.get('webSearchEnabled') is not None:
+        Settings.set('ai_web_search_enabled', data['webSearchEnabled'])
+
+    # Return updated settings
+    return get_settings()
 
 if __name__ == '__main__':
     # Set instance path explicitly
