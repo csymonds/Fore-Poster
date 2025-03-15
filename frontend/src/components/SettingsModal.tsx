@@ -198,7 +198,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose }) => {
                   <Slider
                     id="temperature"
                     min={0}
-                    max={1}
+                    max={2}
                     step={0.1}
                     value={[localAISettings.temperature]}
                     onValueChange={(values: number[]) => {
@@ -208,7 +208,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose }) => {
                   />
                   <div className="flex justify-between text-xs text-muted-foreground">
                     <span>Predictable (0.0)</span>
-                    <span>Creative (1.0)</span>
+                    <span>Creative (2.0)</span>
                   </div>
                 </div>
                 

@@ -57,6 +57,7 @@ instance/
 dev_*
 TODO.md
 *.service
+gunicorn_config.py
 
 # Testing
 .coverage
