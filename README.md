@@ -2,7 +2,8 @@
 
 A social media automation tool designed for technical content creators. Schedule and manage posts across platforms with a focus on technical education content.
 
-<img src="https://www.visionstudioshub.com/img/fp.png" alt="Description" width="600" />
+<img src="https://www.visionstudioshub.com/img/fp1.png" alt="Description" width="600" />
+<img src="https://www.visionstudioshub.com/img/fp2.png" alt="Description" width="600" />
 
 ## Architecture
 
@@ -14,6 +15,7 @@ Fore-Poster consists of the following main components:
   - `notification.py`: Handles sending email alerts via AWS SES in production mode
   - `posting.py`: Common posting functionality for social media platforms
   - `models.py`: Shared data models
+  - `ai_service.py`: AI content generation using OpenAI's Responses API
 
 This architecture allows for consistent behavior between immediate and scheduled posts while maintaining the flexibility to run the scheduler as a separate process in production.
 
@@ -83,35 +85,6 @@ npm run dev
 - Frontend: http://localhost:5173
 - Backend API: http://localhost:8000/api
 
-## Production Deployment
-
-Fore-Poster includes a deployment script for pushing updates to production:
-
-```bash
-# Deploy backend code and restart services
-./deploy.sh --backend --restart
-
-# Deploy frontend only
-./deploy.sh --frontend
-
-# Deploy both and restart services
-./deploy.sh --all
-
-# Initialize/reset the database
-./deploy.sh --init-db
-```
-
-The deployment script handles:
-- Building the frontend with production settings
-- Copying backend files to the server
-- Setting up proper directory permissions
-- Creating necessary instance directories
-- Restarting systemd services
-- Verifying service status after deployment
-
-In production, the application runs as two systemd services:
-- `fore-poster.service`: The main API application
-- `fore-scheduler.service`: The background scheduler for processing scheduled posts
 
 ## Features
 - Post scheduling and management
@@ -122,95 +95,30 @@ In production, the application runs as two systemd services:
 - AWS SES integration for email notifications
 - Secure authentication with JWT
 - Background job processing
+- AI content generation using OpenAI's Responses API
 
-## Project Structure
-```
-fore-poster/
-├── deploy.sh             # Production deployment script
-├── backend/              # Flask backend
-│   ├── .env              # Backend environment configuration
-│   ├── .env.example      # Example backend environment file
-│   ├── instance/         # Database location
-│   │   └── uploads/      # Uploaded images storage directory
-│   ├── core/             # Shared modules
-│   │   ├── __init__.py   # Package marker
-│   │   ├── notification.py # Email notification system 
-│   │   ├── posting.py    # Shared posting functionality
-│   │   └── models.py     # Shared data models
-│   ├── config.py         # Configuration management
-│   ├── env_handler.py    # Environment variable handling
-│   ├── fore_poster.py    # Main API application
-│   ├── fore_scheduler.py # Background job scheduler
-│   ├── reset_db.py       # Database initialization script
-│   ├── run.py            # Main entry point for backend
-│   └── wsgi.py           # WSGI entry point
-├── frontend/             # React/TypeScript frontend
-│   ├── .env              # Frontend environment configuration
-│   ├── src/              # Source code
-│   └── ...               # Frontend configuration files
-└── requirements.txt      # Python dependencies
-```
 
-## Environment Configuration
+## AI Content Generation
 
-The project uses separate `.env` files for backend and frontend, each in their own directory:
+Fore-Poster includes AI-assisted content creation:
 
-### Backend Environment Variables (`backend/.env`)
+### Features
+- Generate social media post content with a single click
+- Real-time streaming of AI responses using Server-Sent Events
+- Configurable system prompts and parameters
+- Optional web search capability for more informed content
+- Customizable temperature setting to control creativity
 
-The backend environment file includes configuration for:
-- Application environment (development/production)
-- AWS SES for email notifications
-- X/Twitter API credentials
-- Database connection settings
-- JWT authentication secrets
-- Admin user credentials
+### Technology
+- Integrated with OpenAI's Responses API
+- Secure authentication using Bearer tokens
+- Server-side streaming for responsive user experience
 
-### Frontend Environment Variables (`frontend/.env`)
-
-The frontend environment file contains only:
-```
-VITE_API_BASE_URL=http://localhost:8000/api
-```
-
-This separation ensures that:
-1. Frontend code only has access to the API URL it needs
-2. Backend sensitive information stays isolated from the frontend
-3. Each part of the application can be configured independently
-
-### Database
-- Development: SQLite database in `backend/instance/fore_poster.db`
-- Production: PostgreSQL database (configured via environment variables)
-
-### Authentication
-- JWT-based authentication
-- Default admin user created from credentials in the backend .env file
-
-## Smart Scheduling Feature
-
-Fore-Poster includes an intelligent scheduling system that automatically selects the optimal time to post your content based on social media best practices:
-
-### Optimal Posting Times
-The system recognizes three peak engagement periods:
-- **Morning (7:00 AM)**: Catch your audience during their morning routine
-- **Noon (11:00 AM)**: Reach users during lunch breaks 
-- **Evening (6:00 PM)**: Connect with your audience after work hours
-
-### How It Works
-1. When creating a new post, the system analyzes your existing scheduled posts
-2. It finds the next available optimal time slot that doesn't conflict with other posts
-3. The time is automatically set for your new post
-4. You'll see a message indicating that an optimal time was selected
-
-### Quick Time Selection
-For easy scheduling, three convenient buttons are provided:
-- **Morning**: Schedule for 7:00 AM (today or tomorrow if it's already past)
-- **Noon**: Schedule for 11:00 AM (today or tomorrow if it's already past)
-- **Evening**: Schedule for 6:00 PM (today or tomorrow if it's already past)
-
-### Custom Scheduling
-If you prefer a different time, you can still:
-- Use the date/time picker for complete customization
-- Edit any suggested time to your preference
+### Configuration
+AI settings can be adjusted through the application's settings panel:
+- System prompt: Customize the AI's behavior and tone
+- Temperature: Adjust from factual (lower) to creative (higher)
+- Web search: Enable/disable web search capabilities
 
 ## Image Upload Feature
 
@@ -227,61 +135,6 @@ Fore-Poster supports adding images to your social media posts:
 - When posting to X/Twitter, the image will be included in the post
 - Images can be added when creating a post or editing an existing one
 - Click the X button to remove an attached image
-
-### Configuration
-The image upload feature can be configured through environment variables in your backend .env file.
-
-## Email Notifications
-
-Fore-Poster sends email notifications about post status in production environments:
-
-### Notification Types:
-- **Post Successfully Published** - Sent when a post is successfully published to X
-- **Post Failed** - Sent when there's an error publishing a post
-- **Posting Error** - Sent when an exception occurs during the posting process
-
-### Email Content:
-Each notification includes:
-- Post ID and content
-- Platform details
-- Complete API response from X
-- Time of posting
-- Any error messages or warnings
-
-### Configuration:
-Email notifications require AWS SES configuration in your backend `.env` file.
-
-In development mode, notifications are logged to console and log files instead of sending emails.
-
-## Troubleshooting
-
-### Database Issues
-If you encounter database errors, try resetting the database:
-```bash
-cd backend
-python reset_db.py
-```
-
-### Environment Variable Issues
-If your environment variables aren't being picked up correctly:
-
-1. For backend issues:
-   - Verify that `.env` exists in the backend directory
-   - Check that environment variables are correctly formatted (no spaces around = signs)
-   - Ensure no trailing spaces or comments on the same line as variables
-
-2. For frontend issues:
-   - Verify that `frontend/.env` exists and contains VITE_API_BASE_URL
-   - After changing frontend environment variables, restart the Vite dev server
-
-### Notification System Issues
-If emails aren't being sent in production:
-1. Ensure AWS_REGION, SES_SENDER, and SES_RECIPIENT are properly set in backend .env
-2. Check that the APP_ENV environment variable is set to 'production'
-3. Restart both services after making environment changes:
-   ```bash
-   sudo systemctl restart fore-poster.service fore-scheduler.service
-   ```
 
 ## Development Status and Disclaimer
 
