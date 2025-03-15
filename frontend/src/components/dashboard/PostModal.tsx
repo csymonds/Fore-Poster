@@ -17,7 +17,8 @@ import { useCreatePost, useUpdatePost, usePosts } from '@/hooks/usePosts';
 import { 
   OPTIMAL_POSTING_TIMES, 
   findNextOptimalTimeSlot, 
-  createTimeSlot 
+  createTimeSlot,
+  getOptimalPostingTimes
 } from '@/utils/dateUtils';
 
 interface PostModalProps {
@@ -43,6 +44,9 @@ const PostModal: React.FC<PostModalProps> = ({ isOpen, onClose, post }) => {
   // Maximum file size: 16MB
   const MAX_FILE_SIZE = 16 * 1024 * 1024;
 
+  // Get fresh optimal times
+  const optimalTimes = getOptimalPostingTimes();
+
   // Find the next available optimal time slot when modal opens
   useEffect(() => {
     if (isOpen && !post) {
@@ -58,7 +62,8 @@ const PostModal: React.FC<PostModalProps> = ({ isOpen, onClose, post }) => {
       } else {
         // Default to next optimal time if posts aren't loaded yet
         const now = new Date();
-        const optimalTimes = OPTIMAL_POSTING_TIMES.map(slot => 
+        const freshOptimalTimes = getOptimalPostingTimes(); // Get fresh times
+        const optimalTimes = freshOptimalTimes.map(slot => 
           createTimeSlot(now, slot.hour, slot.minute)
         );
         
@@ -72,8 +77,8 @@ const PostModal: React.FC<PostModalProps> = ({ isOpen, onClose, post }) => {
           tomorrow.setDate(tomorrow.getDate() + 1);
           setScheduledTime(createTimeSlot(
             tomorrow, 
-            OPTIMAL_POSTING_TIMES[0].hour, 
-            OPTIMAL_POSTING_TIMES[0].minute
+            freshOptimalTimes[0].hour, 
+            freshOptimalTimes[0].minute
           ));
         }
       }
@@ -104,24 +109,15 @@ const PostModal: React.FC<PostModalProps> = ({ isOpen, onClose, post }) => {
   const createPost = useCreatePost();
   const updatePost = useUpdatePost();
 
-  const handleTimeSlotSelect = (slot: typeof OPTIMAL_POSTING_TIMES[0]) => {
-    const now = new Date();
-    let targetDate = new Date(scheduledTime); // Keep the date part
-    
-    // Create time slot for today
-    const todaySlot = createTimeSlot(now, slot.hour, slot.minute);
-    
-    // If today's slot is in the past, use tomorrow
-    if (todaySlot < now) {
-      const tomorrow = new Date(now);
-      tomorrow.setDate(tomorrow.getDate() + 1);
-      targetDate = createTimeSlot(tomorrow, slot.hour, slot.minute);
-    } else {
-      // Use today's slot
-      targetDate = todaySlot;
+  // Handle selecting a time slot
+  const handleTimeSlotSelect = (slot: { hour: number; minute: number }) => {
+    const date = new Date();
+    if (date.getHours() > slot.hour || (date.getHours() === slot.hour && date.getMinutes() >= slot.minute)) {
+      // If the slot is already past for today, use tomorrow
+      date.setDate(date.getDate() + 1);
     }
     
-    setScheduledTime(targetDate);
+    setScheduledTime(createTimeSlot(date, slot.hour, slot.minute));
   };
 
   const handleImageUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -311,30 +307,33 @@ const PostModal: React.FC<PostModalProps> = ({ isOpen, onClose, post }) => {
                 size="sm"
                 variant="outline"
                 className="flex items-center gap-1 border-indigo-400 dark:border-indigo-500"
-                onClick={() => handleTimeSlotSelect(OPTIMAL_POSTING_TIMES[0])}
+                onClick={() => handleTimeSlotSelect(optimalTimes[0])}
+                title={`Morning (${optimalTimes[0].hour}:${optimalTimes[0].minute.toString().padStart(2, '0')})`}
               >
                 <SunIcon className="h-4 w-4" />
-                <span>Morning</span>
+                <span>Morning ({optimalTimes[0].hour}:{optimalTimes[0].minute.toString().padStart(2, '0')})</span>
               </Button>
               <Button 
                 type="button" 
                 size="sm"
                 variant="outline"
                 className="flex items-center gap-1 border-indigo-400 dark:border-indigo-500"
-                onClick={() => handleTimeSlotSelect(OPTIMAL_POSTING_TIMES[1])}
+                onClick={() => handleTimeSlotSelect(optimalTimes[1])}
+                title={`Noon (${optimalTimes[1].hour}:${optimalTimes[1].minute.toString().padStart(2, '0')})`}
               >
                 <Clock3Icon className="h-4 w-4" />
-                <span>Noon</span>
+                <span>Noon ({optimalTimes[1].hour}:{optimalTimes[1].minute.toString().padStart(2, '0')})</span>
               </Button>
               <Button 
                 type="button" 
                 size="sm"
                 variant="outline"
                 className="flex items-center gap-1 border-indigo-400 dark:border-indigo-500"
-                onClick={() => handleTimeSlotSelect(OPTIMAL_POSTING_TIMES[2])}
+                onClick={() => handleTimeSlotSelect(optimalTimes[2])}
+                title={`Evening (${optimalTimes[2].hour}:${optimalTimes[2].minute.toString().padStart(2, '0')})`}
               >
                 <MoonIcon className="h-4 w-4" />
-                <span>Evening</span>
+                <span>Evening ({optimalTimes[2].hour}:{optimalTimes[2].minute.toString().padStart(2, '0')})</span>
               </Button>
             </div>
 

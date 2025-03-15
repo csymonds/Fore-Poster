@@ -9,8 +9,14 @@ export function useDarkMode() {
       const storedSettings = localStorage.getItem('appSettings');
       if (storedSettings) {
         const parsedSettings = JSON.parse(storedSettings);
-        if (parsedSettings.appearance && 'darkMode' in parsedSettings.appearance) {
-          console.log(`Found dark mode in appSettings: ${parsedSettings.appearance.darkMode}`);
+        // First check preferences (new location)
+        if (parsedSettings.preferences && 'darkMode' in parsedSettings.preferences) {
+          console.log(`Found dark mode in preferences: ${parsedSettings.preferences.darkMode}`);
+          return parsedSettings.preferences.darkMode;
+        }
+        // Fallback to appearance (old location) for backwards compatibility
+        else if (parsedSettings.appearance && 'darkMode' in parsedSettings.appearance) {
+          console.log(`Found dark mode in appearance: ${parsedSettings.appearance.darkMode}`);
           return parsedSettings.appearance.darkMode;
         }
       }
@@ -61,14 +67,21 @@ export function useDarkMode() {
           parsedSettings = JSON.parse(storedSettings);
         } else {
           console.log("Creating new appSettings object");
-          parsedSettings = { appearance: {} };
+          parsedSettings = { preferences: {} };
         }
         
-        // Update the appearance settings
-        parsedSettings.appearance = { 
-          ...parsedSettings.appearance,
-          darkMode 
-        };
+        // Ensure preferences exists
+        if (!parsedSettings.preferences) {
+          parsedSettings.preferences = {};
+        }
+        
+        // Update the preferences settings
+        parsedSettings.preferences.darkMode = darkMode;
+        
+        // For backwards compatibility, also update appearance if it exists
+        if (parsedSettings.appearance) {
+          parsedSettings.appearance.darkMode = darkMode;
+        }
         
         // Save the updated settings
         const settingsJson = JSON.stringify(parsedSettings);

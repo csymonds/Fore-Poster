@@ -8,9 +8,9 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Slider } from '@/components/ui/slider';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
-import { AlertTriangle } from 'lucide-react';
+import { AlertTriangle, SunIcon, Clock3Icon, MoonIcon } from 'lucide-react';
 import { useDarkMode } from '@/hooks/useDarkMode';
-import { useSettings } from '@/hooks/useSettings';
+import { useSettings, TimePreference } from '@/hooks/useSettings';
 import { SettingsApi } from '@/services/api';
 import { useToast } from '@/hooks/useToast';
 
@@ -19,17 +19,72 @@ interface SettingsModalProps {
   onClose: () => void;
 }
 
+// Helper component for time input fields
+const TimeInput: React.FC<{
+  label: string;
+  icon: React.ReactNode;
+  value: TimePreference;
+  onChange: (newValue: TimePreference) => void;
+}> = ({ label, icon, value, onChange }) => {
+  const handleHourChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const hour = parseInt(e.target.value);
+    if (hour >= 0 && hour <= 23) {
+      onChange({ ...value, hour });
+    }
+  };
+
+  const handleMinuteChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const minute = parseInt(e.target.value);
+    if (minute >= 0 && minute <= 59) {
+      onChange({ ...value, minute });
+    }
+  };
+
+  return (
+    <div className="flex items-center space-x-3">
+      <div className="flex-shrink-0">
+        {icon}
+      </div>
+      <Label className="flex-grow">{label}</Label>
+      <div className="flex items-center space-x-1">
+        <Input
+          type="number"
+          min={0}
+          max={23}
+          value={value.hour}
+          onChange={handleHourChange}
+          className="w-16"
+        />
+        <span>:</span>
+        <Input
+          type="number"
+          min={0}
+          max={59}
+          value={value.minute}
+          onChange={handleMinuteChange}
+          className="w-16"
+        />
+      </div>
+    </div>
+  );
+};
+
 const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose }) => {
   const [darkMode, setDarkMode] = useDarkMode();
-  const { settings, updateAI, updatePosts, resetSettings } = useSettings();
+  const { settings, updatePreferences, updateAI, updatePosts, resetSettings } = useSettings();
   const { toast } = useToast();
   const [isSyncing, setIsSyncing] = useState(false);
-  const [activeTab, setActiveTab] = useState('appearance');
+  const [activeTab, setActiveTab] = useState('preferences');
 
   // Track if we've modified settings that require backend sync
   const [aiSettingsModified, setAiSettingsModified] = useState(false);
 
   // Local state for editing
+  const [localPreferences, setLocalPreferences] = useState({
+    darkMode: settings.preferences.darkMode,
+    optimalTimes: [...settings.preferences.optimalTimes]
+  });
+
   const [localAISettings, setLocalAISettings] = useState({
     systemPrompt: settings.ai.systemPrompt,
     temperature: settings.ai.temperature,
@@ -43,6 +98,11 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose }) => {
 
   // Update local state when settings change
   useEffect(() => {
+    setLocalPreferences({
+      darkMode: settings.preferences.darkMode,
+      optimalTimes: [...settings.preferences.optimalTimes]
+    });
+
     setLocalAISettings({
       systemPrompt: settings.ai.systemPrompt,
       temperature: settings.ai.temperature,
@@ -54,6 +114,14 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose }) => {
       defaultPlatform: settings.posts.defaultPlatform
     });
   }, [settings]);
+
+  // Update dark mode when the dark mode setting changes
+  useEffect(() => {
+    setLocalPreferences(prev => ({
+      ...prev,
+      darkMode
+    }));
+  }, [darkMode]);
 
   // Sync AI settings with backend
   const syncAISettings = async () => {
@@ -101,13 +169,31 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose }) => {
     }
   };
 
+  // Handle time setting changes
+  const handleTimeChange = (index: number, newValue: TimePreference) => {
+    const updatedTimes = [...localPreferences.optimalTimes];
+    updatedTimes[index] = { ...newValue };
+    setLocalPreferences(prev => ({
+      ...prev,
+      optimalTimes: updatedTimes
+    }));
+  };
+
   // Save all local changes to settings store
   const saveSettings = () => {
+    // Update Preferences
+    updatePreferences(localPreferences);
+    
     // Update AI settings
     updateAI(localAISettings);
     
     // Update post management settings
     updatePosts(localPostSettings);
+    
+    // Set dark mode (which will also update localStorage)
+    if (darkMode !== localPreferences.darkMode) {
+      setDarkMode(localPreferences.darkMode);
+    }
     
     // Sync with backend if needed
     if (aiSettingsModified) {
@@ -133,15 +219,15 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose }) => {
           </DialogDescription>
         </DialogHeader>
         
-        <Tabs defaultValue="appearance" value={activeTab} onValueChange={setActiveTab} className="w-full">
+        <Tabs defaultValue="preferences" value={activeTab} onValueChange={setActiveTab} className="w-full">
           <TabsList className="grid grid-cols-3 mb-4">
-            <TabsTrigger value="appearance">Appearance</TabsTrigger>
+            <TabsTrigger value="preferences">Preferences</TabsTrigger>
             <TabsTrigger value="ai">AI Settings</TabsTrigger>
             <TabsTrigger value="posts">Post Management</TabsTrigger>
           </TabsList>
           
-          {/* Appearance Tab */}
-          <TabsContent value="appearance" className="space-y-4">
+          {/* Preferences Tab (formerly Appearance) */}
+          <TabsContent value="preferences" className="space-y-4">
             <Card>
               <CardHeader>
                 <CardTitle>Theme</CardTitle>
@@ -157,10 +243,49 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose }) => {
                   </Label>
                   <Switch
                     id="dark-mode"
-                    checked={darkMode}
-                    onCheckedChange={setDarkMode}
+                    checked={localPreferences.darkMode}
+                    onCheckedChange={(checked) => 
+                      setLocalPreferences(prev => ({ ...prev, darkMode: checked }))
+                    }
                   />
                 </div>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle>Optimal Post Times</CardTitle>
+                <CardDescription>Customize when your posts are scheduled</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <p className="text-sm text-muted-foreground mb-2">
+                  Set your preferred posting times for the quick scheduling buttons
+                </p>
+                
+                <TimeInput 
+                  label="Morning"
+                  icon={<SunIcon className="h-5 w-5 text-indigo-500" />}
+                  value={localPreferences.optimalTimes[0]}
+                  onChange={(newValue) => handleTimeChange(0, newValue)}
+                />
+                
+                <TimeInput 
+                  label="Noon"
+                  icon={<Clock3Icon className="h-5 w-5 text-indigo-500" />}
+                  value={localPreferences.optimalTimes[1]}
+                  onChange={(newValue) => handleTimeChange(1, newValue)}
+                />
+                
+                <TimeInput 
+                  label="Evening"
+                  icon={<MoonIcon className="h-5 w-5 text-indigo-500" />}
+                  value={localPreferences.optimalTimes[2]}
+                  onChange={(newValue) => handleTimeChange(2, newValue)}
+                />
+                
+                <p className="text-xs text-muted-foreground mt-2">
+                  Times are displayed in 24-hour format. Example: 18:00 is 6:00 PM.
+                </p>
               </CardContent>
             </Card>
           </TabsContent>

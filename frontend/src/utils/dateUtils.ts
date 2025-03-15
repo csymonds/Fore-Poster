@@ -17,12 +17,31 @@ export const formatDate = (dateString: string): string => {
   }
 };
 
-// The optimal posting times (in 24-hour format)
-export const OPTIMAL_POSTING_TIMES = [
+// Default optimal posting times (in 24-hour format)
+export const DEFAULT_OPTIMAL_POSTING_TIMES = [
   { hour: 7, minute: 0, name: 'Morning' },   // 7:00 AM
   { hour: 11, minute: 0, name: 'Noon' },     // 11:00 AM
   { hour: 18, minute: 0, name: 'Evening' }   // 6:00 PM
 ];
+
+// Get optimal posting times from localStorage or use defaults
+export const getOptimalPostingTimes = (): typeof DEFAULT_OPTIMAL_POSTING_TIMES => {
+  try {
+    const storedSettings = localStorage.getItem('appSettings');
+    if (storedSettings) {
+      const parsedSettings = JSON.parse(storedSettings);
+      if (parsedSettings.preferences?.optimalTimes) {
+        return parsedSettings.preferences.optimalTimes;
+      }
+    }
+  } catch (error) {
+    console.error('Error loading optimal times from localStorage:', error);
+  }
+  return DEFAULT_OPTIMAL_POSTING_TIMES;
+};
+
+// Export a getter for the optimal posting times (always gets fresh settings)
+export const OPTIMAL_POSTING_TIMES = getOptimalPostingTimes();
 
 /**
  * Creates a Date object for a specific hour and minute on a given day
@@ -78,6 +97,9 @@ export const findNextOptimalTimeSlot = (
   scheduledPosts: string[],
   currentTime: Date = new Date()
 ): Date => {
+  // Always get fresh optimal times
+  const optimalTimes = getOptimalPostingTimes();
+  
   // Convert all scheduled posts to Date objects for easier comparison
   const scheduledTimes = scheduledPosts.map(post => new Date(post));
   
@@ -88,7 +110,7 @@ export const findNextOptimalTimeSlot = (
   
   while (daysToLookAhead < MAX_DAYS_TO_LOOK) {
     // Check each optimal time slot for the current day
-    for (const timeSlot of OPTIMAL_POSTING_TIMES) {
+    for (const timeSlot of optimalTimes) {
       const slotTime = createTimeSlot(targetDay, timeSlot.hour, timeSlot.minute);
       
       // Skip past time slots
@@ -112,5 +134,5 @@ export const findNextOptimalTimeSlot = (
   // If all slots are taken in the next week, default to tomorrow morning
   const tomorrow = new Date(currentTime);
   tomorrow.setDate(tomorrow.getDate() + 1);
-  return createTimeSlot(tomorrow, OPTIMAL_POSTING_TIMES[0].hour, OPTIMAL_POSTING_TIMES[0].minute);
+  return createTimeSlot(tomorrow, optimalTimes[0].hour, optimalTimes[0].minute);
 }; 
