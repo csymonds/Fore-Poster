@@ -58,6 +58,7 @@ dev_*
 TODO.md
 *.service
 gunicorn_config.py
+aiNotes.md
 
 # Testing
 .coverage
