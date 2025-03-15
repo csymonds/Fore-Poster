@@ -1,11 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { DEFAULT_OPTIMAL_POSTING_TIMES } from '@/utils/dateUtils';
 
-// Define types for different settings categories
-export interface AppearanceSettings {
-  darkMode: boolean;
-}
-
 // Define time settings for morning, noon, evening
 export interface TimePreference {
   hour: number;
@@ -64,20 +59,13 @@ export function useSettings() {
     try {
       const storedSettings = localStorage.getItem('appSettings');
       if (storedSettings) {
-        // Merge stored settings with defaults for any new settings
+        // Parse stored settings and merge with defaults for any new settings
         const parsedSettings = JSON.parse(storedSettings);
-        
-        // Handle migration from 'appearance' to 'preferences'
-        const preferences = parsedSettings.preferences || {};
-        if (parsedSettings.appearance && !parsedSettings.preferences) {
-          // If we have old 'appearance' settings but no 'preferences', migrate the data
-          preferences.darkMode = parsedSettings.appearance.darkMode;
-        }
         
         return {
           preferences: { 
             ...DEFAULT_SETTINGS.preferences, 
-            ...preferences,
+            ...parsedSettings.preferences,
           },
           ai: { ...DEFAULT_SETTINGS.ai, ...parsedSettings.ai },
           posts: { ...DEFAULT_SETTINGS.posts, ...parsedSettings.posts },

@@ -24,18 +24,20 @@ export const DEFAULT_OPTIMAL_POSTING_TIMES = [
   { hour: 18, minute: 0, name: 'Evening' }   // 6:00 PM
 ];
 
-// Get optimal posting times from localStorage or use defaults
+// Get optimal posting times from preferences
 export const getOptimalPostingTimes = (): typeof DEFAULT_OPTIMAL_POSTING_TIMES => {
   try {
     const storedSettings = localStorage.getItem('appSettings');
     if (storedSettings) {
       const parsedSettings = JSON.parse(storedSettings);
+      // Only check the preferences path
       if (parsedSettings.preferences?.optimalTimes) {
         return parsedSettings.preferences.optimalTimes;
       }
+      // No need for fallbacks - if we don't have the data in the right place, use defaults
     }
   } catch (error) {
-    console.error('Error loading optimal times from localStorage:', error);
+    console.error('Error loading optimal times:', error);
   }
   return DEFAULT_OPTIMAL_POSTING_TIMES;
 };

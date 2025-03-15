@@ -4,34 +4,22 @@ export function useDarkMode() {
   const [darkMode, setDarkMode] = useState(() => {
     console.log("Initializing dark mode from storage");
     
-    // Check for the newer settings format first
+    // Check for settings in the preferences structure
     try {
       const storedSettings = localStorage.getItem('appSettings');
       if (storedSettings) {
         const parsedSettings = JSON.parse(storedSettings);
-        // First check preferences (new location)
+        // Only check preferences (new location)
         if (parsedSettings.preferences && 'darkMode' in parsedSettings.preferences) {
           console.log(`Found dark mode in preferences: ${parsedSettings.preferences.darkMode}`);
           return parsedSettings.preferences.darkMode;
         }
-        // Fallback to appearance (old location) for backwards compatibility
-        else if (parsedSettings.appearance && 'darkMode' in parsedSettings.appearance) {
-          console.log(`Found dark mode in appearance: ${parsedSettings.appearance.darkMode}`);
-          return parsedSettings.appearance.darkMode;
-        }
       }
     } catch (error) {
-      console.error('Error reading newer settings format:', error);
+      console.error('Error reading settings format:', error);
     }
     
-    // Fall back to the old standalone darkMode setting
-    const stored = localStorage.getItem('darkMode');
-    if (stored !== null) {
-      console.log(`Found dark mode in legacy storage: ${stored}`);
-      return stored === 'true';
-    }
-    
-    // Fall back to system preference
+    // Fall back to system preference if no settings found
     if (window.matchMedia) {
       const systemPreference = window.matchMedia('(prefers-color-scheme: dark)').matches;
       console.log(`Using system preference for dark mode: ${systemPreference}`);
@@ -42,7 +30,7 @@ export function useDarkMode() {
     return false;
   });
 
-  // Update document class and both storage locations when darkMode changes
+  // Update document class and store settings when darkMode changes
   useEffect(() => {
     console.log(`Dark mode changed to: ${darkMode}`);
     
@@ -55,10 +43,6 @@ export function useDarkMode() {
     // Create a function to save settings
     const saveSettings = () => {
       try {
-        // Write to both the old location and new settings format for backward compatibility
-        console.log(`Saving dark mode (${darkMode}) to localStorage`);
-        localStorage.setItem('darkMode', darkMode.toString());
-        
         // Create default settings object if none exists
         let parsedSettings;
         const storedSettings = localStorage.getItem('appSettings');
@@ -75,13 +59,8 @@ export function useDarkMode() {
           parsedSettings.preferences = {};
         }
         
-        // Update the preferences settings
+        // Update the preferences settings - only use the new structure
         parsedSettings.preferences.darkMode = darkMode;
-        
-        // For backwards compatibility, also update appearance if it exists
-        if (parsedSettings.appearance) {
-          parsedSettings.appearance.darkMode = darkMode;
-        }
         
         // Save the updated settings
         const settingsJson = JSON.stringify(parsedSettings);
@@ -94,7 +73,7 @@ export function useDarkMode() {
           console.error("Storage verification failed");
         }
       } catch (error) {
-        console.error('Error updating appearance settings:', error);
+        console.error('Error updating preferences settings:', error);
       }
     };
     
