@@ -212,7 +212,8 @@ def setup_logging(app):
         backupCount=safe_get_int('LOG_BACKUP_COUNT', 10, min_value=1, max_value=100)  # Default: 10 backups
     )
     file_handler.setFormatter(logging.Formatter(
-        '%(asctime)s %(levelname)s: %(message)s [in %(pathname)s:%(lineno)d]'
+        '%(asctime)s.%(msecs)03d %(levelname)s: %(message)s [in %(pathname)s:%(lineno)d]',
+        datefmt='%Y-%m-%d %H:%M:%S'
     ))
     file_handler.setLevel(logging.INFO)
     
@@ -223,7 +224,8 @@ def setup_logging(app):
         backupCount=safe_get_int('LOG_BACKUP_COUNT', 10, min_value=1, max_value=100)
     )
     error_handler.setFormatter(logging.Formatter(
-        '%(asctime)s %(levelname)s: %(message)s [in %(pathname)s:%(lineno)d]'
+        '%(asctime)s.%(msecs)03d %(levelname)s: %(message)s [in %(pathname)s:%(lineno)d]',
+        datefmt='%Y-%m-%d %H:%M:%S'
     ))
     error_handler.setLevel(logging.ERROR)
 

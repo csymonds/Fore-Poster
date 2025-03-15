@@ -1,8 +1,17 @@
 import { useState, useEffect, useCallback } from 'react';
+import { DEFAULT_OPTIMAL_POSTING_TIMES } from '@/utils/dateUtils';
 
-// Define types for different settings categories
-export interface AppearanceSettings {
+// Define time settings for morning, noon, evening
+export interface TimePreference {
+  hour: number;
+  minute: number;
+  name: string;
+}
+
+// Preferences includes both appearance and time settings
+export interface PreferencesSettings {
   darkMode: boolean;
+  optimalTimes: TimePreference[];
 }
 
 export interface AISettings {
@@ -18,15 +27,16 @@ export interface PostSettings {
 
 // Combine all settings into one type
 export interface Settings {
-  appearance: AppearanceSettings;
+  preferences: PreferencesSettings;
   ai: AISettings;
   posts: PostSettings;
 }
 
 // Default settings values
 const DEFAULT_SETTINGS: Settings = {
-  appearance: {
+  preferences: {
     darkMode: false, // Will be overridden by useDarkMode
+    optimalTimes: DEFAULT_OPTIMAL_POSTING_TIMES,
   },
   ai: {
     systemPrompt: "You are a social media expert who writes engaging, factual posts for X (formerly Twitter). Your goal is growing your audience and get attention. Make the algorithm happy. Keep it under 280 characters. Avoid exclamation marks. Don't be cringe. Don't be cheesy. Use emojis",
@@ -49,10 +59,14 @@ export function useSettings() {
     try {
       const storedSettings = localStorage.getItem('appSettings');
       if (storedSettings) {
-        // Merge stored settings with defaults for any new settings
+        // Parse stored settings and merge with defaults for any new settings
         const parsedSettings = JSON.parse(storedSettings);
+        
         return {
-          appearance: { ...DEFAULT_SETTINGS.appearance, ...parsedSettings.appearance },
+          preferences: { 
+            ...DEFAULT_SETTINGS.preferences, 
+            ...parsedSettings.preferences,
+          },
           ai: { ...DEFAULT_SETTINGS.ai, ...parsedSettings.ai },
           posts: { ...DEFAULT_SETTINGS.posts, ...parsedSettings.posts },
         };
@@ -73,10 +87,10 @@ export function useSettings() {
   }, [settings]);
 
   // Update functions for each settings category
-  const updateAppearance = useCallback<UpdateSettings<AppearanceSettings>>((newSettings) => {
+  const updatePreferences = useCallback<UpdateSettings<PreferencesSettings>>((newSettings) => {
     setSettings(prev => ({
       ...prev,
-      appearance: { ...prev.appearance, ...newSettings },
+      preferences: { ...prev.preferences, ...newSettings },
     }));
   }, []);
 
@@ -101,7 +115,7 @@ export function useSettings() {
 
   return {
     settings,
-    updateAppearance,
+    updatePreferences,
     updateAI,
     updatePosts,
     resetSettings,
@@ -147,5 +161,18 @@ export const settingsStore = {
       console.error('Error loading web search setting from localStorage:', error);
     }
     return DEFAULT_SETTINGS.ai.shouldUseWebSearch;
+  },
+  
+  getOptimalTimes: (): TimePreference[] => {
+    try {
+      const storedSettings = localStorage.getItem('appSettings');
+      if (storedSettings) {
+        const parsedSettings = JSON.parse(storedSettings);
+        return parsedSettings.preferences?.optimalTimes || DEFAULT_SETTINGS.preferences.optimalTimes;
+      }
+    } catch (error) {
+      console.error('Error loading optimal times from localStorage:', error);
+    }
+    return DEFAULT_SETTINGS.preferences.optimalTimes;
   }
 }; 
